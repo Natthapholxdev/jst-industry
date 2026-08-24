@@ -1,0 +1,195 @@
+'use client';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import * as xlsx from 'xlsx';
+import { saveAs } from 'file-saver';
+
+export default function OTReportsPage() {
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  
+  const [otData, setOtData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [otSetting, setOtSetting] = useState('18:30'); // ค่าเริ่มต้นเผื่อดึงไม่ติด
+
+  // ดึงเวลาเริ่มนับ OT จาก Settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data } = await supabase.from('shift_settings').select('ot_in_end').eq('id', 1).single();
+      if (data?.ot_in_end) setOtSetting(data.ot_in_end);
+    };
+    fetchSettings();
+  }, []);
+
+  // ฟังก์ชันแปลงเวลาเป็นทศนิยม (เช่น 18:30 -> 18.5)
+  const timeToHours = (timeStr?: string) => {
+    if (!timeStr || typeof timeStr !== 'string' || timeStr === '-') return 0;
+    const cleanStr = timeStr.replace('.', ':').trim();
+    if (!cleanStr.includes(':')) {
+      const num = Number(cleanStr);
+      return isNaN(num) ? 0 : num;
+    }
+    const [h, m] = cleanStr.split(':').map(Number);
+    return (h || 0) + ((m || 0) / 60);
+  };
+
+  // ดึงข้อมูลและคำนวณโอที
+  const generateOTReport = async () => {
+    if (!startDate || !endDate) return alert('กรุณาเลือกวันที่');
+    setIsLoading(true);
+
+    try {
+      const { data: employees } = await supabase.from('employees').select('id, emp_code, full_name, department, shift_id').eq('status', 'Active');
+      const { data: logs } = await supabase.from('attendance_logs').select('*').gte('log_date', startDate).lte('log_date', endDate);
+
+      if (!employees) throw new Error("No employees");
+
+      const { data: shifts } = await supabase.from('shifts').select('*');
+      const shiftsMap = new Map((shifts || []).map(s => [s.id, s]));
+ // e.g., 18.5
+
+      const summary = employees.map(emp => {
+        const empShift = shiftsMap.get(emp.shift_id) || { ot_start_time: '18:30' };
+        const otSettingStart = timeToHours(empShift.ot_start_time);
+        const empLogs = logs?.filter(l => l.employee_id === emp.id) || [];
+        
+        let totalOTHours = 0;
+        let otDaysCount = 0;
+
+        empLogs.forEach(log => {
+          // ดึงเวลาเข้า-ออก ทุกคู่
+          const in1 = timeToHours(log.time_in_1);
+          const out1 = timeToHours(log.time_out_1);
+          const in2 = timeToHours(log.time_in_2);
+          const out2 = timeToHours(log.time_out_2);
+          const in3 = timeToHours(log.time_in_3);
+          const out3 = timeToHours(log.time_out_3);
+
+          let dailyOT = 0;
+
+          // ตรวจสอบช่วงเวลาที่เกินจาก otSettingStart ในทุกๆ pair
+          const pairs = [[in1, out1], [in2, out2], [in3, out3]];
+          
+          pairs.forEach(([tIn, tOut]) => {
+            if (tIn > 0 && tOut > 0) {
+              // ถ้าเวลาออก มากกว่าเวลาเริ่ม OT ของบริษัท
+              if (tOut > otSettingStart) {
+                // เวลาเริ่มคิด OT = ค่าที่มากกว่าระหว่าง เวลาเริ่ม OT ของบริษัท กับ เวลาเข้างานของพนักงาน
+                const actualOtStart = Math.max(tIn, otSettingStart);
+                if (tOut > actualOtStart) {
+                  dailyOT += (tOut - actualOtStart);
+                }
+              }
+            }
+          });
+
+          if (dailyOT > 0) {
+            totalOTHours += dailyOT;
+            otDaysCount++;
+          }
+        });
+
+        return {
+          ...emp,
+          ot_days: otDaysCount,
+          total_ot: totalOTHours > 0 ? totalOTHours.toFixed(2) : '0.00'
+        };
+      });
+
+      // กรองเอาเฉพาะคนที่มี OT จริงๆ มาแสดง
+      const hasOtOnly = summary.filter(s => Number(s.total_ot) > 0).sort((a, b) => Number(b.total_ot) - Number(a.total_ot));
+      setOtData(hasOtOnly);
+
+    } catch (error) {
+      console.error(error);
+      alert('เกิดข้อผิดพลาดในการคำนวณ');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const exportToExcel = () => {
+    if (otData.length === 0) return alert('ไม่มีข้อมูล');
+    const excelData = otData.map((r, i) => ({
+      'ลำดับ': i + 1,
+      'รหัส': r.emp_code,
+      'ชื่อ-นามสกุล': r.full_name,
+      'แผนก': r.department,
+      'จำนวนวันที่ทำ OT': r.ot_days,
+      'รวมชั่วโมง OT': Number(r.total_ot)
+    }));
+
+    const worksheet = xlsx.utils.json_to_sheet(excelData);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'สรุปโอที');
+    const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+    saveAs(data, `สรุปโอที_${startDate}_ถึง_${endDate}.xlsx`);
+  };
+
+  return (
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto font-sans">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
+            <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 dark:text-slate-300 transition">&larr;</Link>
+            รายงานสรุปโอที (OT)
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 ml-10 font-medium">คำนวณ OT อัตโนมัติตามกะของพนักงานแต่ละบุคคล</p>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border bborder-slate-200 dark:border-slate-700 mb-6 flex flex-col md:flex-row items-end gap-6">
+        <div className="flex-1 flex gap-4 w-full">
+          <div className="w-full">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">ตั้งแต่วันที่</label>
+            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border bborder-slate-200 dark:border-slate-700 rounded-lg outline-none" />
+          </div>
+          <div className="w-full">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">ถึงวันที่</label>
+            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border bborder-slate-200 dark:border-slate-700 rounded-lg outline-none" />
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={generateOTReport} disabled={isLoading} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 dark:bg-indigo-500 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-sm">
+            {isLoading ? 'กำลังคำนวณ...' : <><Wallet className="w-5 h-5" /> คำนวณ OT</>}
+          </button>
+          <button onClick={exportToExcel} disabled={otData.length === 0} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm">
+            ดาวน์โหลด Excel
+          </button>
+        </div>
+      </div>
+
+      {otData.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border bborder-slate-200 dark:border-slate-700 overflow-hidden">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50 dark:bg-slate-900">
+              <tr>
+                <th className="px-6 py-4 text-left font-bold text-slate-700 dark:text-slate-200">รหัส</th>
+                <th className="px-6 py-4 text-left font-bold text-slate-700 dark:text-slate-200">ชื่อ-นามสกุล</th>
+                <th className="px-6 py-4 text-center font-bold text-slate-700 dark:text-slate-200">ทำ OT (วัน)</th>
+                <th className="px-6 py-4 text-center font-bold text-indigo-700 dark:text-indigo-300">รวม OT (ชั่วโมง)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {otData.map((emp) => (
+                <tr key={emp.id} className="hover:bg-slate-50 dark:bg-slate-900">
+                  <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">{emp.emp_code}</td>
+                  <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-200">{emp.full_name}</td>
+                  <td className="px-6 py-3 text-center text-slate-600 dark:text-slate-300 font-bold">{emp.ot_days}</td>
+                  <td className="px-6 py-3 text-center text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50/30">{emp.total_ot} ชม.</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
