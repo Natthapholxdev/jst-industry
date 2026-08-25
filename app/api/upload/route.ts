@@ -39,77 +39,94 @@ export async function POST(request: Request) {
       dateNF: "yyyy-mm-dd"        // ถ้าเป็นวันที่ ให้จัดฟอร์แมตนี้เลย
     });
 
-    let successCount = 0;
-
     const { data: employees, error: empError } = await supabase
       .from("employees")
-      .select("id, emp_code, fingerprint_id"); 
+      .select("id, emp_code, fingerprint_id, full_name"); 
 
     if (empError) throw empError;
     if (!employees) throw new Error("ไม่สามารถดึงข้อมูลพนักงาน");
 
-    for (const row of rawData as any[]) {
-      const rawCode = row["หมายเลขพนักงาน"] || row["รหัส "] || row["รหัส"] || row[" รหัส"];
-      const rawDate = row["วันที่"] || row["วันที่ "];
-      const rawTime = row["เวลา"] || row["เวลา "];
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sendEvent = (data: any) => {
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+        };
 
-      if (!rawCode || !rawDate || !rawTime) continue;
+        let successCount = 0;
 
-      const excelEmpCode = String(rawCode).trim().toLowerCase();
-      const logDate = String(rawDate).trim(); 
-      const timesString = String(rawTime).trim(); 
+        for (const row of rawData as any[]) {
+          const rawCode = row["หมายเลขพนักงาน"] || row["รหัส "] || row["รหัส"] || row[" รหัส"];
+          const rawDate = row["วันที่"] || row["วันที่ "];
+          const rawTime = row["เวลา"] || row["เวลา "];
 
-      const employee = employees.find((e) => {
-        const dbFingerprint = String(e.fingerprint_id || "").trim().toLowerCase();
-        return dbFingerprint === excelEmpCode;
-      });
-      
-      if (!employee) continue;
+          if (!rawCode || !rawDate || !rawTime) continue;
 
-      const times = timesString.split(",").map((t: string) => t.trim());
-      const time_in_1 = times[0] || null;
-      const time_out_1 = times[1] || null;
-      const time_in_2 = times[2] || null;
-      const time_out_2 = times[3] || null;
-      const time_in_3 = times[4] || null; 
-      const time_out_3 = times[5] || null; 
+          const excelEmpCode = String(rawCode).trim().toLowerCase();
+          const logDate = String(rawDate).trim(); 
+          const timesString = String(rawTime).trim(); 
 
-      // 🌟 ซ่อมแซมวันที่ (เผื่อมันยังหลุดมาเป็นฟอร์แมตที่มีทับ /)
-      let formattedDate = logDate;
-      if (logDate.includes("/")) {
-        const parts = logDate.split("/");
-        if (parts.length === 3) {
-          let year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-          let month = parts[0].padStart(2, '0');
-          let day = parts[1].padStart(2, '0');
-          if (Number(month) > 12) { // สลับวันกับเดือน กรณีมันมาเป็น DD/MM/YYYY
-            const temp = month; month = day; day = temp;
+          const employee = employees.find((e) => {
+            const dbFingerprint = String(e.fingerprint_id || "").trim().toLowerCase();
+            return dbFingerprint === excelEmpCode;
+          });
+          
+          if (!employee) continue;
+
+          const times = timesString.split(",").map((t: string) => t.trim());
+          const time_in_1 = times[0] || null;
+          const time_out_1 = times[1] || null;
+          const time_in_2 = times[2] || null;
+          const time_out_2 = times[3] || null;
+          const time_in_3 = times[4] || null; 
+          const time_out_3 = times[5] || null; 
+
+          // 🌟 ซ่อมแซมวันที่ (เผื่อมันยังหลุดมาเป็นฟอร์แมตที่มีทับ /)
+          let formattedDate = logDate;
+          if (logDate.includes("/")) {
+            const parts = logDate.split("/");
+            if (parts.length === 3) {
+              let year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+              let month = parts[0].padStart(2, '0');
+              let day = parts[1].padStart(2, '0');
+              if (Number(month) > 12) { // สลับวันกับเดือน กรณีมันมาเป็น DD/MM/YYYY
+                const temp = month; month = day; day = temp;
+              }
+              formattedDate = `${year}-${month}-${day}`;
+            }
           }
-          formattedDate = `${year}-${month}-${day}`;
+
+          // ส่ง Progress แบบ Real-time
+          sendEvent({ type: 'progress', employee: employee.full_name, date: formattedDate });
+
+          // บันทึกลง Database
+          const { error } = await supabase.from("attendance_logs").upsert(
+            {
+              employee_id: employee.id,
+              log_date: formattedDate,
+              time_in_1, time_out_1,
+              time_in_2, time_out_2,
+              time_in_3, time_out_3, 
+            },
+            { onConflict: "employee_id, log_date" },
+          );
+
+          if (!error) {
+            successCount++;
+          }
         }
+        
+        sendEvent({ type: 'done', count: successCount });
+        controller.close();
       }
+    });
 
-      // บันทึกลง Database
-      const { error } = await supabase.from("attendance_logs").upsert(
-        {
-          employee_id: employee.id,
-          log_date: formattedDate,
-          time_in_1, time_out_1,
-          time_in_2, time_out_2,
-          time_in_3, time_out_3, 
-        },
-        { onConflict: "employee_id, log_date" },
-      );
-
-      // แจ้งเตือนใน Terminal ถ้าเกิด Error จะได้รู้สาเหตุ!
-      if (error) {
-        console.error(`❌ บันทึกไม่สำเร็จ รหัส: ${excelEmpCode} วันที่: ${formattedDate}`, error.message);
-      } else {
-        successCount++;
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
       }
-    }
-
-    return NextResponse.json({ success: true, count: successCount });
+    });
   } catch (error: any) {
     console.error("Upload Error:", error);
     return NextResponse.json({ error: "เกิดข้อผิดพลาดจากระบบ" }, { status: 500 });

@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   try {
     const { data: employees, error: empError } = await supabase
       .from("employees")
-      .select("id, emp_code, full_name")
+      .select("id, emp_code, full_name, weekly_day_off")
       .eq("status", "Active")
       .order("emp_code", { ascending: true });
     if (empError) throw empError;
@@ -29,8 +29,26 @@ export async function GET(request: Request) {
       .eq("log_date", date);
     if (logError) throw logError;
 
+    // หาว่าเป็นวันหยุดบริษัทหรือไม่
+    const { data: holidays } = await supabase
+      .from("holidays")
+      .select("*")
+      .eq("holiday_date", date);
+    
+    const holiday = holidays && holidays.length > 0 ? holidays[0] : null;
+    const currentDayOfWeek = new Date(date).getDay(); // 0 = Sunday, 1 = Monday...
+
     const records = employees.map((emp) => {
       const log = logs?.find((l) => l.employee_id === emp.id);
+      
+      // การคำนวณ Multiplier เริ่มต้น
+      let defaultMultiplier = 1.0;
+      if (holiday) {
+        defaultMultiplier = holiday.multiplier || 2.0;
+      } else if (emp.weekly_day_off !== null && emp.weekly_day_off !== undefined && emp.weekly_day_off === currentDayOfWeek) {
+        defaultMultiplier = 2.0;
+      }
+
       return {
         id: emp.id,
         emp_code: emp.emp_code,
@@ -42,10 +60,14 @@ export async function GET(request: Request) {
         time_in_3: log?.time_in_3 || "",
         time_out_3: log?.time_out_3 || "",
         remark: log?.remark || "",
+        pay_multiplier: log?.pay_multiplier ?? defaultMultiplier,
+        is_holiday: !!holiday,
+        holiday_name: holiday?.name || "",
+        is_weekly_day_off: emp.weekly_day_off === currentDayOfWeek
       };
     });
 
-    return NextResponse.json(records);
+    return NextResponse.json({ records, isHoliday: !!holiday, holidayInfo: holiday });
   } catch (error: any) {
     // ป้องกัน Information Exposure: ไม่ส่งรายละเอียดของ error กลับไปยัง client
     console.error("API Error (Attendance GET):", error);
@@ -84,6 +106,7 @@ export async function POST(request: Request) {
       "time_in_3",
       "time_out_3",
       "remark",
+      "pay_multiplier"
     ];
 
     // 2. เตรียมข้อมูลสำหรับบันทึก และเช็คว่ามีการแก้ช่องไหนบ้าง
@@ -93,8 +116,10 @@ export async function POST(request: Request) {
       // ตรวจสอบทีละช่องว่าค่าเปลี่ยนไปจากเดิมไหม
       fieldsToCheck.forEach((field) => {
         // จัดการให้ค่าว่าง ('') เป็น null จะได้เทียบกันได้เป๊ะๆ
-        const oldVal = oldLog ? oldLog[field] || null : null;
-        const newVal = rec[field] || null;
+        let oldVal = oldLog ? oldLog[field] : null;
+        if (oldVal === undefined) oldVal = null;
+        let newVal = rec[field];
+        if (newVal === undefined || newVal === "") newVal = null;
 
         // ถ้าค่าไม่ตรงกัน แปลว่ามีการแก้ไข (หรือเพิ่มใหม่)
         if (oldVal !== newVal) {
@@ -119,6 +144,7 @@ export async function POST(request: Request) {
         time_in_3: rec.time_in_3 || null,
         time_out_3: rec.time_out_3 || null,
         remark: rec.remark || null,
+        pay_multiplier: rec.pay_multiplier !== undefined ? Number(rec.pay_multiplier) : 1.0
       };
     });
 

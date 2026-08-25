@@ -60,9 +60,22 @@ export default function AttendancePage() {
   const [records, setRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 🌟 State สำหรับระบบ 2 แรง / วันหยุด
+  const [isHoliday, setIsHoliday] = useState(false);
+  const [holidayInfo, setHolidayInfo] = useState<any>(null);
+  const [showSpecialPayOnly, setShowSpecialPayOnly] = useState(false);
+  const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
+
   // เช็คว่าวันที่เลือก เป็นอดีตหรือไม่
   const todayStr = new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0];
   const isPastDate = selectedDate < todayStr;
+
+  const handleBulkMultiplier = (multiplier: string) => {
+    setRecords(records.map(rec => 
+      selectedEmpIds.includes(rec.id) ? { ...rec, pay_multiplier: multiplier, is_edited: true } : rec
+    ));
+    setSelectedEmpIds([]); // เคลียร์ค่าที่เลือกหลังจากกด
+  };
 
   const fetchRecords = async (date: string) => {
     setIsLoading(true);
@@ -70,7 +83,9 @@ export default function AttendancePage() {
       const res = await fetch(`/api/attendance?date=${date}`);
       if (res.ok) {
         const data = await res.json();
-        setRecords(data);
+        setRecords(data.records || []);
+        setIsHoliday(data.isHoliday || false);
+        setHolidayInfo(data.holidayInfo || null);
       }
     } catch (error) {
       console.error("Fetch error:", error);
@@ -103,15 +118,36 @@ export default function AttendancePage() {
   };
 
   const handleSave = async () => {
-    const editedRecords = records.filter((r) => r.is_edited);
+    // ใช้ records ทั้งหมดในการเช็คและบันทึก เพื่อให้กดบันทึกได้ตลอด
+    const recordsToSave = records;
 
-    if (editedRecords.length === 0) {
-      return Swal.fire({ icon: "info", title: "ไม่มีการเปลี่ยนแปลง", text: "คุณยังไม่ได้แก้ไขข้อมูลใดๆ", confirmButtonColor: "#4f46e5" });
+    if (recordsToSave.length === 0) {
+      return Swal.fire({ icon: "info", title: "ไม่มีข้อมูล", text: "ไม่มีข้อมูลพนักงานสำหรับบันทึก", confirmButtonColor: "#4f46e5" });
     }
 
-    const invalidRecord = editedRecords.find((rec) => !validateTimes(rec));
+    const invalidRecord = recordsToSave.find((rec) => !validateTimes(rec));
+    const missingPunchRecord = recordsToSave.find((rec) => (rec.time_in_1 && !rec.time_out_1) || (rec.time_in_2 && !rec.time_out_2));
+    
+    let warningHtml = "";
     if (invalidRecord) {
-      return Swal.fire({ icon: "error", title: "ข้อมูลเวลาไม่ถูกต้อง!", text: `คุณกรอกเวลาออกงาน เร็วกว่าเวลาเข้างาน ของ ${invalidRecord.full_name} กรุณาตรวจสอบใหม่`, confirmButtonColor: "#ef4444" });
+      warningHtml += `พบข้อมูลเวลาออกงานเร็วกว่าเข้างาน (เช่น ${invalidRecord.full_name})<br/>`;
+    }
+    if (missingPunchRecord) {
+      warningHtml += `พบข้อมูลลืมสแกนออก (เช่น ${missingPunchRecord.full_name})<br/>`;
+    }
+
+    if (warningHtml) {
+      const confirmProceed = await Swal.fire({
+        icon: "warning",
+        title: "ข้อมูลเวลาไม่สมบูรณ์!",
+        html: `${warningHtml}<br/><b>คุณต้องการบันทึกข้อมูลต่อไปหรือไม่?</b>`,
+        showCancelButton: true,
+        confirmButtonColor: "#f59e0b",
+        cancelButtonColor: "#64748b",
+        confirmButtonText: "บันทึกต่อไป",
+        cancelButtonText: "กลับไปแก้ไข",
+      });
+      if (!confirmProceed.isConfirmed) return;
     }
 
     Swal.fire({
@@ -131,7 +167,7 @@ export default function AttendancePage() {
           const res = await fetch("/api/attendance", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date: selectedDate, records: editedRecords }),
+            body: JSON.stringify({ date: selectedDate, records: recordsToSave }),
           });
 
           if (res.ok) {
@@ -147,6 +183,13 @@ export default function AttendancePage() {
     });
   };
 
+  const filteredRecords = records.filter(emp => {
+    if (showSpecialPayOnly) {
+      return Number(emp.pay_multiplier) > 1.0;
+    }
+    return true;
+  });
+
   return (
     <div className="p-4 sm:p-8 max-w-[1400px] mx-auto font-sans">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -157,7 +200,14 @@ export default function AttendancePage() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button 
+            onClick={() => setShowSpecialPayOnly(!showSpecialPayOnly)}
+            className={`px-3 py-2 rounded-lg font-bold text-sm border transition shadow-sm flex items-center gap-2 ${showSpecialPayOnly ? 'bg-orange-100 text-orange-700 border-orange-300' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300'}`}
+          >
+            <Flame className="w-4 h-4" /> 
+            {showSpecialPayOnly ? 'แสดงทั้งหมด' : 'ดูเฉพาะได้ค่าแรงพิเศษ'}
+          </button>
           <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 rounded-lg overflow-hidden shadow-sm">
             <span className="px-3 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border-r bborder-slate-200 dark:border-slate-700">วันที่</span>
             <input
@@ -171,6 +221,13 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      {isHoliday && holidayInfo && (
+        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold flex items-center gap-2 text-sm shadow-sm">
+          <span>🎉</span>
+          วันนี้เป็นวันหยุดพิเศษ: {holidayInfo.name} (อัตราค่าแรงอัตโนมัติ x{holidayInfo.multiplier})
+        </div>
+      )}
+
       {isPastDate && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl font-bold flex items-center gap-2 text-sm shadow-sm">
           <span>🛡️</span>
@@ -179,11 +236,31 @@ export default function AttendancePage() {
       )}
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border bborder-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-6 py-4 border-b bborder-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
+        <div className="px-6 py-4 border-b bborder-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center flex-wrap gap-4">
           <h2 className="font-bold text-slate-700 dark:text-slate-200">ข้อมูลประจำวันที่ {selectedDate}</h2>
-          <button onClick={handleSave} className="px-5 py-2 bg-indigo-600 dark:bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-2">
-            <Save className="w-5 h-5 mr-2 inline-block" /> บันทึกเวลา
-          </button>
+          
+          <div className="flex items-center gap-3">
+            {selectedEmpIds.length > 0 && (
+              <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 animate-in fade-in zoom-in-95 shadow-sm">
+                <span className="text-sm font-bold text-indigo-700">เลือก {selectedEmpIds.length} รายการ:</span>
+                <button 
+                  onClick={() => handleBulkMultiplier('2.0')}
+                  className="px-3 py-1 bg-white border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-md text-xs font-bold transition shadow-sm"
+                >
+                  ตั้งเป็น 2 แรง
+                </button>
+                <button 
+                  onClick={() => handleBulkMultiplier('1.0')}
+                  className="px-3 py-1 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-md text-xs font-bold transition shadow-sm"
+                >
+                  ตั้งเป็นปกติ (x1)
+                </button>
+              </div>
+            )}
+            <button onClick={handleSave} className="px-5 py-2 bg-indigo-600 dark:bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-2">
+              <Save className="w-5 h-5 mr-2 inline-block" /> บันทึกเวลา
+            </button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -193,7 +270,23 @@ export default function AttendancePage() {
             <table className="min-w-full divide-y divide-slate-200 relative">
               <thead className="bg-slate-100 dark:bg-slate-800/50 sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-0 z-20">รหัส</th>
+                  <th className="px-4 py-3 text-left text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-0 z-20">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                        checked={filteredRecords.length > 0 && selectedEmpIds.length === filteredRecords.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedEmpIds(filteredRecords.map(r => r.id));
+                          } else {
+                            setSelectedEmpIds([]);
+                          }
+                        }}
+                      />
+                      <span>รหัส</span>
+                    </div>
+                  </th>
                   <th className="px-4 py-3 text-left text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-16 z-20 min-w-[150px]">ชื่อ-นามสกุล</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200 border-l bborder-slate-200 dark:border-slate-700">เข้าเช้า</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200">ออกเที่ยง</th>
@@ -202,10 +295,11 @@ export default function AttendancePage() {
                   <th className="px-2 py-3 text-center text-sm font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT (3)</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-orange-700 bg-orange-100/50">ออก OT (3)</th>
                   <th className="px-4 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200 border-l bborder-slate-200 dark:border-slate-700">หมายเหตุ</th>
+                  <th className="px-2 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200 min-w-[110px]">อัตราค่าแรง</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white dark:bg-slate-800">
-                {records.map((emp) => {
+                {filteredRecords.map((emp) => {
                   // เช็คว่าลงเวลาแหว่งไหม (เช่น เข้าแต่ไม่ออก)
                   const isMissingPunch = (emp.time_in_1 && !emp.time_out_1) || 
                                          (emp.time_in_2 && !emp.time_out_2);
@@ -213,7 +307,23 @@ export default function AttendancePage() {
 
                   return (
                     <tr key={emp.id} className={`hover:bg-slate-50 dark:bg-slate-900 transition ${emp.is_edited ? "bg-yellow-50" : ""} ${isMissingPunch ? "bg-red-50" : ""} ${isAbsent ? "opacity-50" : ""}`}>
-                      <td className="px-4 py-2 text-sm font-bold text-slate-900 bg-white dark:bg-slate-800 sticky left-0">{emp.emp_code}</td>
+                      <td className="px-4 py-2 text-sm font-bold text-slate-900 bg-white dark:bg-slate-800 sticky left-0">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                            checked={selectedEmpIds.includes(emp.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedEmpIds([...selectedEmpIds, emp.id]);
+                              } else {
+                                setSelectedEmpIds(selectedEmpIds.filter(id => id !== emp.id));
+                              }
+                            }}
+                          />
+                          {emp.emp_code}
+                        </div>
+                      </td>
                       <td className="px-4 py-2 text-sm text-slate-700 dark:text-slate-200 whitespace-nowrap bg-white dark:bg-slate-800 sticky left-16">
                         {emp.full_name}
                         {isMissingPunch && <span className="ml-2 text-xs font-bold text-red-500">⚠️ ลืมสแกนออก</span>}
@@ -249,6 +359,21 @@ export default function AttendancePage() {
                           value={emp.remark || ""}
                           onChange={(e) => handleInputChange(emp.id, "remark", e.target.value)}
                         />
+                      </td>
+
+                      {/* อัตราค่าแรง */}
+                      <td className="px-2 py-2 text-center border-l border-indigo-100 bg-indigo-50/10">
+                        <select
+                          value={emp.pay_multiplier || 1.0}
+                          onChange={(e) => handleInputChange(emp.id, "pay_multiplier", e.target.value)}
+                          className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm cursor-pointer ${Number(emp.pay_multiplier) > 1.0 ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                        >
+                          <option value="1.0">x1.0 (ปกติ)</option>
+                          <option value="2.0">x2.0 (สองแรง)</option>
+                        </select>
+                        {emp.is_weekly_day_off && !isHoliday && (
+                          <div className="text-[9px] text-orange-600 font-bold mt-1 bg-orange-100 rounded-full px-1">วันหยุดสัปดาห์</div>
+                        )}
                       </td>
                     </tr>
                   );

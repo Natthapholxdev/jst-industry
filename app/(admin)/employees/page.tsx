@@ -30,7 +30,8 @@ export default function EmployeesPage() {
     base_salary: 0, hourly_rate: 0, ot_hourly_rate: 0, status: 'Active', shift_id: 1,
     national_id: '', gender: '', birth_date: '', education: '', document_url: '',
     nickname: '', blood_type: '', religion: '', marital_status: '', military_status: '',
-    address: '', phone: '', email: '', emergency_contact_name: '', emergency_contact_phone: '', emergency_contact_relation: '',
+    address: '', address_line1: '', address_street: '', address_subdistrict: '', address_district: '', address_province: '', address_zip: '',
+    phone: '', email: '', emergency_contact_name: '', emergency_contact_phone: '', emergency_contact_relation: '',
     bank_name: '', bank_account_no: '', shirt_size: ''
   });
 
@@ -80,7 +81,8 @@ export default function EmployeesPage() {
       base_salary: 0, hourly_rate: 0, ot_hourly_rate: 0, status: 'Active', shift_id: 1,
       national_id: '', gender: '', birth_date: '', education: '', document_url: '',
       nickname: '', blood_type: '', religion: '', marital_status: '', military_status: '',
-      address: '', phone: '', email: '', emergency_contact_name: '', emergency_contact_phone: '', emergency_contact_relation: '',
+      address: '', address_line1: '', address_street: '', address_subdistrict: '', address_district: '', address_province: '', address_zip: '',
+      phone: '', email: '', emergency_contact_name: '', emergency_contact_phone: '', emergency_contact_relation: '',
       bank_name: '', bank_account_no: '', shirt_size: ''
     });
     setIsEditing(false);
@@ -105,7 +107,11 @@ export default function EmployeesPage() {
       base_salary: emp.base_salary || 0, hourly_rate: emp.hourly_rate || 0, ot_hourly_rate: emp.ot_hourly_rate || 0, status: emp.status || 'Active', shift_id: emp.shift_id || 1,
       national_id: emp.national_id || '', gender: emp.gender || '', birth_date: emp.birth_date || '', education: emp.education || '', document_url: emp.document_url || '',
       nickname: emp.nickname || '', blood_type: emp.blood_type || '', religion: emp.religion || '', marital_status: emp.marital_status || '', military_status: emp.military_status || '',
-      address: emp.address || '', phone: emp.phone || '', email: emp.email || '', 
+      address: emp.address || '', 
+      address_line1: emp.address_line1 || '', address_street: emp.address_street || '', 
+      address_subdistrict: emp.address_subdistrict || '', address_district: emp.address_district || '', 
+      address_province: emp.address_province || '', address_zip: emp.address_zip || '',
+      phone: emp.phone || '', email: emp.email || '', 
       emergency_contact_name: emp.emergency_contact_name || '', emergency_contact_phone: emp.emergency_contact_phone || '', emergency_contact_relation: emp.emergency_contact_relation || '',
       bank_name: emp.bank_name || '', bank_account_no: emp.bank_account_no || '', shirt_size: emp.shirt_size || ''
     });
@@ -305,7 +311,7 @@ export default function EmployeesPage() {
               </h2>
               <div className="flex items-center gap-4">
                 {isViewMode && (
-                  <button onClick={handleEditFromView} className="px-4 py-1.5 bg-white dark:bg-slate-800/20 hover:bg-white dark:bg-slate-800/30 rounded-lg text-sm font-bold backdrop-blur-sm transition">
+                  <button onClick={handleEditFromView} className="px-4 py-1.5 bg-white text-indigo-700 dark:text-white dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm">
                     <Edit className="w-4 h-4 mr-1 inline-block" /> แก้ไข
                   </button>
                 )}
@@ -340,7 +346,17 @@ export default function EmployeesPage() {
                       <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.phone || '-'}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">อีเมล:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.email || '-'}</span></div>
                       <div className="flex justify-between border-t border-dashed border-slate-200 dark:border-slate-700 pt-3"><span className="text-slate-500 dark:text-slate-400 font-bold">ที่อยู่ปัจจุบัน:</span></div>
-                      <p className="text-slate-700 dark:text-slate-300 font-medium bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg">{selectedEmployee.address || '-'}</p>
+                      <p className="text-slate-700 dark:text-slate-300 font-medium bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg">
+                        {selectedEmployee.address_line1 ? (
+                          <>
+                            {selectedEmployee.address_line1} {selectedEmployee.address_street && `ถนน${selectedEmployee.address_street}`} <br/>
+                            {selectedEmployee.address_subdistrict && `ตำบล/แขวง ${selectedEmployee.address_subdistrict}`} {selectedEmployee.address_district && `อำเภอ/เขต ${selectedEmployee.address_district}`} <br/>
+                            {selectedEmployee.address_province && `จังหวัด${selectedEmployee.address_province}`} {selectedEmployee.address_zip}
+                          </>
+                        ) : (
+                          selectedEmployee.address || '-'
+                        )}
+                      </p>
                     </div>
                   </div>
 
@@ -360,8 +376,8 @@ export default function EmployeesPage() {
                     <div className="space-y-3 text-sm">
                       <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">ธนาคาร:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.bank_name || '-'}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เลขที่บัญชี:</span> <span className="font-black text-indigo-700 dark:text-indigo-400 tracking-widest">{selectedEmployee.bank_account_no || '-'}</span></div>
-                      <div className="flex justify-between border-t border-dashed border-slate-200 dark:border-slate-700 pt-3"><span className="text-slate-500 dark:text-slate-400">ฐานเงินเดือน:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.base_salary?.toLocaleString() || '0'} ฿</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เรทปกติ / OT:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.hourly_rate || '0'} / {selectedEmployee.ot_hourly_rate || '0'} ฿</span></div>
+                      <div className="flex justify-between border-t border-dashed border-slate-200 dark:border-slate-700 pt-3"><span className="text-slate-500 dark:text-slate-400">ค่าแรงรายวัน (ปกติ):</span> <span className="font-bold text-indigo-600 dark:text-indigo-400">{selectedEmployee.hourly_rate || '0'} ฿/วัน</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เรทค่าโอที (OT):</span> <span className="font-bold text-orange-600 dark:text-orange-400">{selectedEmployee.ot_hourly_rate || '0'} ฿/ชม.</span></div>
                     </div>
                   </div>
 
@@ -474,8 +490,33 @@ export default function EmployeesPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ที่อยู่ปัจจุบัน (ห้องพัก/บ้านเลขที่, ถนน, ตำบล, อำเภอ, จังหวัด, รหัสไปรษณีย์)</label>
-                          <textarea rows={3} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white resize-none"></textarea>
+                          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">ที่อยู่ปัจจุบัน</label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ห้องพัก/บ้านเลขที่, หมู่, ซอย</label>
+                              <input type="text" value={formData.address_line1} onChange={e => setFormData({...formData, address_line1: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ถนน</label>
+                              <input type="text" value={formData.address_street} onChange={e => setFormData({...formData, address_street: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ตำบล/แขวง</label>
+                              <input type="text" value={formData.address_subdistrict} onChange={e => setFormData({...formData, address_subdistrict: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">อำเภอ/เขต</label>
+                              <input type="text" value={formData.address_district} onChange={e => setFormData({...formData, address_district: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">จังหวัด</label>
+                              <input type="text" value={formData.address_province} onChange={e => setFormData({...formData, address_province: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">รหัสไปรษณีย์</label>
+                              <input type="text" value={formData.address_zip} onChange={e => setFormData({...formData, address_zip: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white font-black tracking-widest" />
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -548,18 +589,18 @@ export default function EmployeesPage() {
 
                       <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
                         <h3 className="font-bold text-indigo-900 dark:text-indigo-400 mb-3 text-sm"><Wallet className="w-5 h-5 mr-2 inline-block" /> ค่าจ้าง & บัญชีรับเงินเดือน</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-                          <div className="col-span-2 md:col-span-1">
-                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">ฐานเงินเดือน</label>
-                            <input type="number" step="any" value={formData.base_salary} onChange={e => setFormData({...formData, base_salary: parseFloat(e.target.value) || 0})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-800 dark:text-slate-200" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="flex items-center text-xs font-bold text-indigo-700 dark:text-indigo-400 mb-1">
+                              <Sun className="w-3.5 h-3.5 mr-1" /> ค่าแรงรายวัน (บาท/วัน)
+                            </label>
+                            <input type="number" step="any" value={formData.hourly_rate} onChange={e => setFormData({...formData, hourly_rate: parseFloat(e.target.value) || 0})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-700 rounded-lg outline-none font-bold text-indigo-700 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500 shadow-sm transition" />
                           </div>
-                          <div className="col-span-1 md:col-span-2">
-                            <label className="block text-xs font-bold text-indigo-700 dark:text-indigo-400 mb-1">เรทปกติ (บาท/ชม.)</label>
-                            <input type="number" step="any" value={formData.hourly_rate} onChange={e => setFormData({...formData, hourly_rate: parseFloat(e.target.value) || 0})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-700 rounded-lg outline-none font-bold text-indigo-600 dark:text-indigo-400" />
-                          </div>
-                          <div className="col-span-1 md:col-span-2">
-                            <label className="block text-xs font-bold text-orange-700 dark:text-orange-400 mb-1">เรท OT (บาท/ชม.)</label>
-                            <input type="number" step="any" value={formData.ot_hourly_rate} onChange={e => setFormData({...formData, ot_hourly_rate: parseFloat(e.target.value) || 0})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-orange-200 dark:border-orange-700 rounded-lg outline-none font-bold text-orange-600 dark:text-orange-400" />
+                          <div>
+                            <label className="flex items-center text-xs font-bold text-orange-700 dark:text-orange-400 mb-1">
+                              <Clock className="w-3.5 h-3.5 mr-1" /> ค่าโอที (บาท/ชม.)
+                            </label>
+                            <input type="number" step="any" value={formData.ot_hourly_rate} onChange={e => setFormData({...formData, ot_hourly_rate: parseFloat(e.target.value) || 0})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border-2 border-orange-200 dark:border-orange-700 rounded-lg outline-none font-bold text-orange-700 dark:text-orange-400 focus:ring-2 focus:ring-orange-500 shadow-sm transition" />
                           </div>
                         </div>
                         

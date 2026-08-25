@@ -8,6 +8,7 @@ interface FileUploadProps {
 
 export default function FileUpload({ onSuccess }: FileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
   const router = useRouter();
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -15,6 +16,7 @@ export default function FileUpload({ onSuccess }: FileUploadProps) {
     if (!file) return;
     
     setIsUploading(true);
+    setUploadStatus('กำลังอ่านไฟล์ Excel...');
     const formData = new FormData();
     formData.append('file', file);
 
@@ -24,28 +26,57 @@ export default function FileUpload({ onSuccess }: FileUploadProps) {
         body: formData,
       });
       
-      const result = await response.json();
+      if (!response.ok) {
+        alert('เกิดข้อผิดพลาดในการนำเข้าข้อมูล');
+        setIsUploading(false);
+        return;
+      }
 
-      if (response.ok) {
-        alert(`นำเข้าข้อมูลสำเร็จ! บันทึกไปทั้งหมด ${result.count} รายการ`);
-        if (onSuccess) {
-          onSuccess(); // เรียก function รีเฟรชข้อมูลของ Component แม่
-        } else {
-          router.refresh(); 
+      if (!response.body) return;
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+        
+        for (const part of parts) {
+          if (part.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(part.substring(6));
+              if (data.type === 'progress') {
+                setUploadStatus(`กำลังบันทึก: ${data.employee} (${data.date})`);
+              } else if (data.type === 'done') {
+                alert(`นำเข้าข้อมูลสำเร็จ! บันทึกไปทั้งหมด ${data.count} รายการ`);
+                if (onSuccess) {
+                  onSuccess();
+                } else {
+                  router.refresh(); 
+                }
+              } else if (data.error) {
+                alert('เกิดข้อผิดพลาด: ' + data.error);
+              }
+            } catch (e) {}
+          }
         }
-      } else {
-        alert('เกิดข้อผิดพลาด: ' + result.error);
       }
     } catch (error) {
       alert('ไม่สามารถเชื่อมต่อระบบได้');
     } finally {
       setIsUploading(false);
-      event.target.value = ''; // เคลียร์ช่องเลือกไฟล์
+      setUploadStatus('');
+      event.target.value = '';
     }
   };
 
   return (
-    <div>
+    <div className="flex flex-col items-end gap-1">
       <input
         type="file" id="excel-upload" accept=".xlsx, .xls"
         className="hidden" onChange={handleFileChange} disabled={isUploading}
@@ -54,7 +85,7 @@ export default function FileUpload({ onSuccess }: FileUploadProps) {
         htmlFor="excel-upload"
         className={`cursor-pointer inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold transition shadow-sm border ${
           isUploading 
-            ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-400 bborder-slate-200 dark:border-slate-700 cursor-not-allowed' 
+            ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed' 
             : 'bg-slate-800 hover:bg-slate-900 text-white border-slate-800'
         }`}
       >
@@ -67,6 +98,11 @@ export default function FileUpload({ onSuccess }: FileUploadProps) {
           '📥 นำเข้า Excel'
         )}
       </label>
+      {uploadStatus && (
+        <div className="text-xs font-medium text-indigo-600 dark:text-indigo-400 animate-pulse mt-1">
+          {uploadStatus}
+        </div>
+      )}
     </div>
   );
 }
