@@ -35,6 +35,14 @@ export default function DashboardPage() {
     direction: 'asc' 
   });
 
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   // 🌟 State สำหรับ Modal กดดูกราฟ
   const [selectedChartDetail, setSelectedChartDetail] = useState<{ date: string, category: string, categoryName: string, employees: any[] } | null>(null);
 

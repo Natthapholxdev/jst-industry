@@ -72,9 +72,9 @@ export default function ExecutiveChart({ title, data, xKey, series, onDataClick 
                   name={s.name} 
                   fill={s.color} 
                   radius={[4, 4, 0, 0]} 
-                  onClick={(payload) => {
-                    if (onDataClick && payload && payload[xKey]) {
-                      onDataClick(payload[xKey], s.key);
+                  onClick={(data: any) => {
+                    if (onDataClick && data && data[xKey]) {
+                      onDataClick(data[xKey], s.key);
                     }
                   }}
                   cursor={onDataClick ? 'pointer' : 'default'}
@@ -103,9 +103,9 @@ export default function ExecutiveChart({ title, data, xKey, series, onDataClick 
                   dot={{ r: 4, strokeWidth: 2 }} 
                   activeDot={{ 
                     r: 6,
-                    onClick: (_event, payload) => {
-                       if (onDataClick && payload?.payload && payload.payload[xKey]) {
-                         onDataClick(payload.payload[xKey], s.key);
+                    onClick: (_event: any, data: any) => {
+                       if (onDataClick && data?.payload && data.payload[xKey]) {
+                         onDataClick(data.payload[xKey], s.key);
                        }
                     } 
                   }} 
