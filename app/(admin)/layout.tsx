@@ -88,14 +88,22 @@ export default function AdminDashboardLayout({
             อนุมัติการลา
           </Link>
 
-          <div className="px-4 pb-2 pt-6 text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 tracking-wider">รายงานและระบบ (SYSTEM)</div>
+          <div className="px-4 pb-2 pt-6 text-xs font-black text-slate-400 dark:text-slate-500 tracking-wider">รายงานและระบบ (SYSTEM)</div>
 
-          <Link href="/reports" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50/80 dark:hover:bg-amber-500/10 transition-all duration-200 font-bold border border-transparent hover:border-amber-100 dark:hover:border-amber-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-amber-100 dark:group-hover:bg-amber-500/20 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          <Link href="/admin-users" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-400 hover:bg-indigo-50/80 dark:hover:bg-indigo-500/10 transition-all duration-200 font-bold border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/20">
+            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors mr-3">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
             </div>
-            รายงานบัตรลงเวลา
+            จัดการผู้ดูแลระบบ
           </Link>
+
+          <Link href="/admin-logs" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/10 transition-all duration-200 font-bold border border-transparent hover:border-emerald-100 dark:hover:border-emerald-500/20">
+            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mr-3">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            ประวัติใช้งาน (Log)
+          </Link>
+
 
           <Link href="/ot-reports" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-orange-700 dark:hover:text-orange-400 hover:bg-orange-50/80 dark:hover:bg-orange-500/10 transition-all duration-200 font-bold border border-transparent hover:border-orange-100 dark:hover:border-orange-500/20">
             <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors mr-3">

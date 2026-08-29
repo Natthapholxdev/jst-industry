@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
-import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame } from 'lucide-react';
+import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, UserX } from 'lucide-react';
+import ThaiDatePicker from '@/components/ThaiDatePicker';
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -15,6 +16,7 @@ export default function EmployeesPage() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('Active');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -63,6 +65,7 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     let result = employees;
+    if (selectedStatus !== 'All') result = result.filter(emp => emp.status === selectedStatus);
     if (selectedDeptId !== 'All') result = result.filter(emp => emp.department_id === selectedDeptId);
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
@@ -73,7 +76,7 @@ export default function EmployeesPage() {
       );
     }
     setFilteredEmployees(result);
-  }, [searchTerm, selectedDeptId, employees]);
+  }, [searchTerm, selectedDeptId, selectedStatus, employees]);
 
   const handleAddNew = () => {
     setFormData({ 
@@ -157,7 +160,9 @@ export default function EmployeesPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.emp_code || !formData.full_name) return alert('กรุณากรอก รหัสพนักงาน และ ชื่อ-นามสกุล ให้ครบถ้วน');
+    if (!formData.emp_code || !formData.full_name) {
+      return Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณากรอก รหัสพนักงาน และ ชื่อ-นามสกุล ให้ครบถ้วน' });
+    }
 
     try {
       const payload: any = { ...formData };
@@ -196,6 +201,99 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleSoftDelete = async (emp: any) => {
+    // 1. ตรวจสอบรอบเวลาทำงานปัจจุบัน
+    const today = new Date();
+    const date = today.getDate();
+    const month = today.getMonth() + 1;
+    const year = today.getFullYear();
+    
+    // กำหนดวันที่เริ่ม-สิ้นสุดรอบ
+    let cycleStart, cycleEnd;
+    if (date <= 15) {
+      cycleStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+      cycleEnd = `${year}-${month.toString().padStart(2, '0')}-15`;
+    } else {
+      cycleStart = `${year}-${month.toString().padStart(2, '0')}-16`;
+      const lastDay = new Date(year, month, 0).getDate();
+      cycleEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+    }
+
+    try {
+      // ตรวจสอบว่ามีข้อมูลเวลาทำงานในรอบปัจจุบันหรือไม่
+      const { data: logs, error } = await supabase
+        .from('attendance_logs')
+        .select('id')
+        .eq('employee_id', emp.id)
+        .gte('log_date', cycleStart)
+        .lte('log_date', cycleEnd)
+        .limit(1);
+
+      if (error) throw error;
+
+      if (logs && logs.length > 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'ไม่สามารถลบได้',
+          text: `เนื่องจากพนักงานมีเวลาทำงานในรอบปัจจุบัน (${cycleStart} ถึง ${cycleEnd}) ที่ยังไม่สรุปยอด กรุณารอตัดยอดรอบนี้ก่อน (หลังวันที่ 15 หรือสิ้นเดือน)`,
+        });
+        return;
+      }
+
+      // 2. ถ้าลบได้ ให้ยืนยัน 2 ชั้น
+      const result1 = await Swal.fire({
+        title: 'คุณแน่ใจหรือไม่?',
+        text: `ต้องการให้ ${emp.full_name} พ้นสภาพ/ลาออก ใช่หรือไม่?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'ใช่, ฉันต้องการลบ',
+        cancelButtonText: 'ยกเลิก'
+      });
+
+      if (result1.isConfirmed) {
+        const result2 = await Swal.fire({
+          title: 'ยืนยันอีกครั้ง!',
+          text: 'ข้อมูลจะไม่หายไปแต่จะถูกย้ายไปที่ประวัติพนักงานลาออก ยืนยันการดำเนินการหรือไม่?',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'ยืนยันการพ้นสภาพ',
+          cancelButtonText: 'ยกเลิก'
+        });
+
+        if (result2.isConfirmed) {
+          // ดำเนินการ Soft Delete
+          const { error: updateError } = await supabase
+            .from('employees')
+            .update({ status: 'Inactive' })
+            .eq('id', emp.id);
+
+          if (updateError) throw updateError;
+
+          // บันทึก Audit Log
+          try {
+            const sessionData = JSON.parse(localStorage.getItem('userSession') || '{}');
+            const adminName = sessionData.name || 'System';
+            
+            await supabase.from('audit_logs').insert([{
+              admin_username: adminName,
+              action: 'ลบ/พ้นสภาพพนักงาน',
+              details: `พนักงานรหัส ${emp.emp_code} (${emp.full_name}) ถูกตั้งสถานะพ้นสภาพ`
+            }]);
+          } catch (e) { console.error('Failed to log:', e); }
+
+          Swal.fire('สำเร็จ!', 'พนักงานถูกย้ายไปส่วนพนักงานลาออกเรียบร้อยแล้ว.', 'success');
+          fetchData();
+        }
+      }
+    } catch (error: any) {
+      Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+    }
+  };
+
   // ฟังก์ชันคำนวณอายุจากวันเกิด
   const calculateAge = (birthDate: string) => {
     if (!birthDate) return '-';
@@ -226,15 +324,23 @@ export default function EmployeesPage() {
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="flex-1 w-full relative">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-slate-500 dark:text-slate-400"><Search className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" /></span>
-          <input type="text" placeholder="ค้นหาชื่อ, รหัส, ชื่อเล่น..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl outline-none font-medium transition focus:ring-2 focus:ring-indigo-500" />
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full">
+          {/* Status Tabs */}
+          <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl">
+            <button onClick={() => setSelectedStatus('Active')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition ${selectedStatus === 'Active' ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>ทำงานอยู่</button>
+            <button onClick={() => setSelectedStatus('Inactive')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition ${selectedStatus === 'Inactive' ? 'bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>พ้นสภาพ/ลาออก</button>
+          </div>
+
+          <div className="flex-1 w-full relative">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400"><Search className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" /></span>
+            <input type="text" placeholder="ค้นหาชื่อ, รหัส, ชื่อเล่น..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl outline-none font-medium transition focus:ring-2 focus:ring-indigo-500" />
+          </div>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-          <button onClick={() => setSelectedDeptId('All')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition border ${selectedDeptId === 'All' ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>ทั้งหมด</button>
+          <button onClick={() => setSelectedDeptId('All')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition border ${selectedDeptId === 'All' ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>ทุกแผนก</button>
           {departments.map(dept => (
             <button key={dept.id} onClick={() => setSelectedDeptId(dept.id)} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition border ${selectedDeptId === dept.id ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-              {dept.code} - {dept.name_th}
+              {dept.name_th}
             </button>
           ))}
         </div>
@@ -286,9 +392,16 @@ export default function EmployeesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-3 text-center">
-                        <button onClick={() => handleViewProfile(emp)} className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 hover:border-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 font-bold rounded-lg transition text-sm shadow-sm flex items-center gap-1 mx-auto">
-                          <Eye className="w-4 h-4 mr-1" /> ดูข้อมูล
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => handleViewProfile(emp)} className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 hover:border-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 font-bold rounded-lg transition text-sm shadow-sm flex items-center gap-1">
+                            <Eye className="w-4 h-4 mr-1" /> ดูข้อมูล
+                          </button>
+                          {emp.status === 'Active' && (
+                            <button onClick={(e) => { e.stopPropagation(); handleSoftDelete(emp); }} className="px-3 py-1.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 hover:border-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 font-bold rounded-lg transition text-sm shadow-sm flex items-center gap-1" title="ให้พ้นสภาพ/ลาออก">
+                              <UserX className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -311,9 +424,16 @@ export default function EmployeesPage() {
               </h2>
               <div className="flex items-center gap-4">
                 {isViewMode && (
-                  <button onClick={handleEditFromView} className="px-4 py-1.5 bg-white text-indigo-700 dark:text-white dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm">
-                    <Edit className="w-4 h-4 mr-1 inline-block" /> แก้ไข
-                  </button>
+                  <>
+                    <button onClick={handleEditFromView} className="px-4 py-1.5 bg-white text-indigo-700 dark:text-white dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm">
+                      <Edit className="w-4 h-4 mr-1 inline-block" /> แก้ไข
+                    </button>
+                    {selectedEmployee?.status === 'Active' && (
+                      <button onClick={() => { setIsModalOpen(false); handleSoftDelete(selectedEmployee); }} className="px-4 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm border border-rose-400">
+                        <UserX className="w-4 h-4 mr-1 inline-block" /> พ้นสภาพ
+                      </button>
+                    )}
+                  </>
                 )}
                 <button onClick={() => setIsModalOpen(false)} className="text-white/70 hover:text-white font-bold text-2xl leading-none">&times;</button>
               </div>
@@ -416,44 +536,44 @@ export default function EmployeesPage() {
                     <div className="space-y-5 animate-fadeIn">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ชื่อ-นามสกุล *</label>
+                          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ชื่อ-นามสกุล <span className="text-red-500">*</span></label>
                           <input required type="text" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ชื่อเล่น</label>
-                          <input type="text" value={formData.nickname} onChange={e => setFormData({...formData, nickname: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                          <input type="text" value={formData.nickname} onChange={e => setFormData({...formData, nickname: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="col-span-2">
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">เลขบัตรประชาชน (13 หลัก)</label>
-                          <input type="text" maxLength={13} value={formData.national_id} onChange={e => setFormData({...formData, national_id: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                          <input type="text" maxLength={13} value={formData.national_id} onChange={e => setFormData({...formData, national_id: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                         </div>
                         <div className="col-span-2">
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">วัน/เดือน/ปีเกิด</label>
-                          <input type="date" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                          <ThaiDatePicker value={formData.birth_date} onChange={val => setFormData({...formData, birth_date: val})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                         </div>
                         
                         <div>
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">เพศ</label>
-                          <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white">
+                          <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition">
                             <option value="">ไม่ระบุ</option><option value="ชาย">ชาย</option><option value="หญิง">หญิง</option>
                           </select>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">กรุ๊ปเลือด</label>
-                          <select value={formData.blood_type} onChange={e => setFormData({...formData, blood_type: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white">
+                          <select value={formData.blood_type} onChange={e => setFormData({...formData, blood_type: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition">
                             <option value="">ไม่ระบุ</option><option value="A">A</option><option value="B">B</option><option value="O">O</option><option value="AB">AB</option>
                           </select>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ศาสนา</label>
-                          <input type="text" value={formData.religion} onChange={e => setFormData({...formData, religion: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                          <input type="text" value={formData.religion} onChange={e => setFormData({...formData, religion: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">สถานภาพ</label>
-                          <select value={formData.marital_status} onChange={e => setFormData({...formData, marital_status: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white">
+                          <select value={formData.marital_status} onChange={e => setFormData({...formData, marital_status: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition">
                             <option value="">ไม่ระบุ</option><option value="โสด">โสด</option><option value="สมรส">สมรส</option><option value="หย่าร้าง">หย่าร้าง</option>
                           </select>
                         </div>
@@ -462,11 +582,11 @@ export default function EmployeesPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">วุฒิการศึกษาสูงสุด</label>
-                          <input type="text" placeholder="เช่น ปริญญาตรี" value={formData.education} onChange={e => setFormData({...formData, education: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                          <input type="text" placeholder="เช่น ปริญญาตรี" value={formData.education} onChange={e => setFormData({...formData, education: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">สถานภาพทางทหาร (เฉพาะชาย)</label>
-                          <select value={formData.military_status} onChange={e => setFormData({...formData, military_status: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white">
+                          <select value={formData.military_status} onChange={e => setFormData({...formData, military_status: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-indigo-700 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500 transition">
                             <option value="">ไม่ระบุ</option><option value="ผ่านเกณฑ์แล้ว">ผ่านเกณฑ์แล้ว</option><option value="ได้รับการยกเว้น">ได้รับการยกเว้น</option><option value="ยังไม่เกณฑ์">ยังไม่เกณฑ์</option>
                           </select>
                         </div>
@@ -482,11 +602,11 @@ export default function EmployeesPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                           <div>
                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">เบอร์โทรศัพท์มือถือ</label>
-                            <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">อีเมลส่วนตัว</label>
-                            <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                           </div>
                         </div>
                         <div>
@@ -494,27 +614,27 @@ export default function EmployeesPage() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                             <div>
                               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ห้องพัก/บ้านเลขที่, หมู่, ซอย</label>
-                              <input type="text" value={formData.address_line1} onChange={e => setFormData({...formData, address_line1: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                              <input type="text" value={formData.address_line1} onChange={e => setFormData({...formData, address_line1: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                             </div>
                             <div>
                               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ถนน</label>
-                              <input type="text" value={formData.address_street} onChange={e => setFormData({...formData, address_street: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                              <input type="text" value={formData.address_street} onChange={e => setFormData({...formData, address_street: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                             </div>
                             <div>
                               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ตำบล/แขวง</label>
-                              <input type="text" value={formData.address_subdistrict} onChange={e => setFormData({...formData, address_subdistrict: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                              <input type="text" value={formData.address_subdistrict} onChange={e => setFormData({...formData, address_subdistrict: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                             </div>
                             <div>
                               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">อำเภอ/เขต</label>
-                              <input type="text" value={formData.address_district} onChange={e => setFormData({...formData, address_district: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                              <input type="text" value={formData.address_district} onChange={e => setFormData({...formData, address_district: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                             </div>
                             <div>
                               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">จังหวัด</label>
-                              <input type="text" value={formData.address_province} onChange={e => setFormData({...formData, address_province: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white" />
+                              <input type="text" value={formData.address_province} onChange={e => setFormData({...formData, address_province: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition" />
                             </div>
                             <div>
                               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">รหัสไปรษณีย์</label>
-                              <input type="text" value={formData.address_zip} onChange={e => setFormData({...formData, address_zip: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-slate-700 dark:text-white font-black tracking-widest" />
+                              <input type="text" value={formData.address_zip} onChange={e => setFormData({...formData, address_zip: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-black text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition tracking-widest" />
                             </div>
                           </div>
                         </div>
@@ -525,15 +645,15 @@ export default function EmployeesPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ชื่อ-นามสกุล</label>
-                            <input type="text" value={formData.emergency_contact_name} onChange={e => setFormData({...formData, emergency_contact_name: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            <input type="text" value={formData.emergency_contact_name} onChange={e => setFormData({...formData, emergency_contact_name: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-rose-500 transition" />
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">เบอร์โทรศัพท์</label>
-                            <input type="tel" value={formData.emergency_contact_phone} onChange={e => setFormData({...formData, emergency_contact_phone: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            <input type="tel" value={formData.emergency_contact_phone} onChange={e => setFormData({...formData, emergency_contact_phone: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-rose-500 transition" />
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ความสัมพันธ์ (เช่น บิดา)</label>
-                            <input type="text" value={formData.emergency_contact_relation} onChange={e => setFormData({...formData, emergency_contact_relation: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-lg outline-none text-slate-700 dark:text-white" />
+                            <input type="text" value={formData.emergency_contact_relation} onChange={e => setFormData({...formData, emergency_contact_relation: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-lg outline-none font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-rose-500 transition" />
                           </div>
                         </div>
                       </div>
@@ -545,7 +665,7 @@ export default function EmployeesPage() {
                     <div className="space-y-6 animate-fadeIn">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">รหัสบริษัท (แสดงผล) *</label>
+                          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">รหัสบริษัท (แสดงผล) <span className="text-red-500">*</span></label>
                           <input required type="text" value={formData.emp_code} onChange={e => setFormData({...formData, emp_code: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-indigo-700 dark:text-indigo-400 mb-4" />
                           
                           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">รหัสเครื่องสแกนนิ้ว</label>
@@ -648,13 +768,36 @@ export default function EmployeesPage() {
                     </div>
                   )}
 
-                  {/* ปุ่ม Save ของโหมด Edit */}
-                  <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 flex gap-3 sticky bottom-0 bg-white dark:bg-slate-800 pb-2">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3.5 bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition shadow-sm">
-                      ยกเลิก
-                    </button>
-                    <button type="submit" className="flex-[2] px-4 py-3.5 bg-indigo-600 dark:bg-indigo-500 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md text-lg">
-                      <Save className="w-5 h-5 mr-2 inline-block" /> บันทึกข้อมูล
+                  {/* ปุ่มควบคุม (Navigation & Save) */}
+                  <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-3 sticky bottom-0 bg-white dark:bg-slate-800 pb-2">
+                    {activeTab !== 'personal' && (
+                      <button type="button" onClick={() => {
+                        const tabs = ['personal', 'contact', 'work', 'docs'];
+                        setActiveTab(tabs[tabs.indexOf(activeTab) - 1]);
+                      }} className="px-6 py-3.5 bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition shadow-sm">
+                        &larr; กลับ
+                      </button>
+                    )}
+                    
+                    {activeTab !== 'docs' && (
+                      <button type="button" onClick={() => {
+                        if (activeTab === 'personal' && !formData.full_name) {
+                          return Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณากรอก ชื่อ-นามสกุล ก่อนไปหน้าถัดไป' });
+                        }
+                        if (activeTab === 'work' && !formData.emp_code) {
+                          return Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณากรอก รหัสพนักงาน ก่อนไปหน้าถัดไป' });
+                        }
+                        const tabs = ['personal', 'contact', 'work', 'docs'];
+                        setActiveTab(tabs[tabs.indexOf(activeTab) + 1]);
+                      }} className="flex-1 px-4 py-3.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-400 font-bold rounded-xl transition shadow-sm border border-indigo-200 dark:border-indigo-800 text-center">
+                        ถัดไป &rarr;
+                      </button>
+                    )}
+
+                    <div className={activeTab === 'docs' ? 'flex-1' : ''}></div>
+                    
+                    <button type="submit" className="px-8 py-3.5 bg-indigo-600 dark:bg-indigo-500 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm flex items-center justify-center gap-2">
+                      <Save className="w-5 h-5 mr-1" /> {isEditing ? 'บันทึกการแก้ไข' : 'บันทึกใหม่'}
                     </button>
                   </div>
                 </form>
@@ -667,3 +810,5 @@ export default function EmployeesPage() {
     </div>
   );
 }
+
+// force refresh

@@ -4,6 +4,7 @@ import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, Fo
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import FileUpload from "@/components/FileUpload";
+import ThaiDatePicker from "@/components/ThaiDatePicker";
 import Swal from "sweetalert2";
 
 // Component ผสมผสานป้ายแสดงผล + ช่องพิมพ์เวลา (เอา disabled ออกไปเลย เพื่อให้แก้ได้อิสระ)
@@ -209,12 +210,11 @@ export default function AttendancePage() {
             {showSpecialPayOnly ? 'แสดงทั้งหมด' : 'ดูเฉพาะได้ค่าแรงพิเศษ'}
           </button>
           <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 rounded-lg overflow-hidden shadow-sm">
-            <span className="px-3 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border-r bborder-slate-200 dark:border-slate-700">วันที่</span>
-            <input
-              type="date"
+            <span className="px-3 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 h-full flex items-center">วันที่</span>
+            <ThaiDatePicker
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-4 py-2 outline-none font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800"
+              onChange={(val) => setSelectedDate(val)}
+              className="p-2 outline-none dark:bg-slate-800 dark:text-white"
             />
           </div>
           <FileUpload onSuccess={() => fetchRecords(selectedDate)} />

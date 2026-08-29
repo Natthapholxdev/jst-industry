@@ -2,11 +2,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Calendar as CalendarIcon, UserSearch } from 'lucide-react';
+import ThaiDatePicker from '@/components/ThaiDatePicker';
 import { supabase } from '@/lib/supabase';
 import TablePagination from '@/components/TablePagination';
 import ExecutiveChart from '@/components/ExecutiveChart';
+import SymbolReport from '@/components/SymbolReport';
+import DetailedTimeReport from '@/components/DetailedTimeReport';
 
 export default function DashboardPage() {
+  const [activeTab, setActiveTab] = useState<'overview' | 'symbol' | 'detailed'>('overview');
   const [rawEmployees, setRawEmployees] = useState<any[]>([]);
   const [rawLogs, setRawLogs] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -336,18 +340,16 @@ export default function DashboardPage() {
 
           {dateRangeType === 'custom' && (
             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
-              <input 
-                type="date" 
+              <ThaiDatePicker 
                 value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                onChange={(val) => setCustomStart(val)}
+                className="w-32 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm font-medium focus:ring-2 focus:ring-indigo-500"
               />
               <span className="text-slate-400 font-medium">ถึง</span>
-              <input 
-                type="date" 
+              <ThaiDatePicker 
                 value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                onChange={(val) => setCustomEnd(val)}
+                className="w-32 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm font-medium focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           )}
@@ -359,6 +361,36 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 overflow-x-auto pb-1">
+        <button 
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2.5 font-bold text-sm rounded-t-lg transition flex items-center gap-2 whitespace-nowrap
+            ${activeTab === 'overview' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border-b-2 border-indigo-600' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+        >
+          <LayoutDashboard className="w-4 h-4" /> ภาพรวมสถิติ
+        </button>
+        <button 
+          onClick={() => setActiveTab('symbol')}
+          className={`px-4 py-2.5 font-bold text-sm rounded-t-lg transition flex items-center gap-2 whitespace-nowrap
+            ${activeTab === 'symbol' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border-b-2 border-indigo-600' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+        >
+          <BarChart3 className="w-4 h-4" /> รายงานแบบสัญลักษณ์
+        </button>
+        <button 
+          onClick={() => setActiveTab('detailed')}
+          className={`px-4 py-2.5 font-bold text-sm rounded-t-lg transition flex items-center gap-2 whitespace-nowrap
+            ${activeTab === 'detailed' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border-b-2 border-indigo-600' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+        >
+          <FileText className="w-4 h-4" /> รายงานแบบเวลาละเอียด
+        </button>
+      </div>
+
+      {activeTab === 'symbol' && <SymbolReport />}
+      {activeTab === 'detailed' && <DetailedTimeReport />}
+      
+      <div className={activeTab === 'overview' ? 'block' : 'hidden'}>
 
       {isLoading ? (
         <div className="text-center p-16 text-slate-400 font-bold animate-pulse text-lg flex flex-col items-center justify-center">
@@ -613,6 +645,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      </div>
 
     </div>
   );

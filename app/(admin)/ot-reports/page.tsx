@@ -5,6 +5,7 @@ import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, Fo
 import { supabase } from '@/lib/supabase';
 import * as xlsx from 'xlsx';
 import { saveAs } from 'file-saver';
+import ThaiDatePicker from '@/components/ThaiDatePicker';
 
 export default function OTReportsPage() {
   const [startDate, setStartDate] = useState(() => {
@@ -163,11 +164,11 @@ export default function OTReportsPage() {
         <div className="flex-1 flex gap-4 w-full">
           <div className="w-full">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">รอบตัดวีค (เริ่มต้น)</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none" />
+            <ThaiDatePicker value={startDate} onChange={val => setStartDate(val)} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none" />
           </div>
           <div className="w-full">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">รอบตัดวีค (สิ้นสุด)</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none" />
+            <ThaiDatePicker value={endDate} onChange={val => setEndDate(val)} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none" />
           </div>
         </div>
         <div className="flex gap-3">
