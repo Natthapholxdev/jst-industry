@@ -11,7 +11,7 @@ const rateLimitMap = new Map<string, { count: number, startTime: number }>();
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const ip = request.ip || 'unknown_ip';
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || request.headers.get('x-real-ip') || 'unknown_ip';
 
   // --- 🛡️ WAF (Web Application Firewall) สำหรับ API ---
   if (pathname.startsWith('/api/')) {
