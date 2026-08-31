@@ -39,7 +39,11 @@ export default function SettingsPage() {
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSettings({ ...settings, [e.target.name]: e.target.value });
+    let val = e.target.value.replace(/[^0-9:]/g, ''); // allow only numbers and colon
+    if (val.length === 2 && !val.includes(':') && e.target.value.length === 2) {
+      val += ':';
+    }
+    setSettings({ ...settings, [e.target.name]: val });
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -125,39 +129,39 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 dark:bg-slate-900/50">
+        <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
           <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <Clock className="w-6 h-6 text-indigo-500" /> เวลาตัดรอบกะปกติ
+            <Clock className="w-6 h-6 text-indigo-500" /> เวลาตัดรอบกะปกติ (แบบ 24 ชั่วโมง)
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">เข้างาน (เช้า) ไม่เกิน</label>
-              <input type="time" name="morning_in_end" value={settings.morning_in_end} onChange={handleChange} className="w-full mt-2 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-center font-bold dark:text-white" />
+              <input type="text" maxLength={5} placeholder="08:00" name="morning_in_end" value={settings.morning_in_end} onChange={handleChange} className="w-full mt-2 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-center font-bold dark:text-white tracking-widest" />
             </div>
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">พักเที่ยง เริ่มตั้งแต่</label>
-              <input type="time" name="lunch_out_end" value={settings.lunch_out_end} onChange={handleChange} className="w-full mt-2 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-center font-bold dark:text-white" />
+              <input type="text" maxLength={5} placeholder="12:00" name="lunch_out_end" value={settings.lunch_out_end} onChange={handleChange} className="w-full mt-2 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-center font-bold dark:text-white tracking-widest" />
             </div>
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">เข้างาน (บ่าย) ไม่เกิน</label>
-              <input type="time" name="afternoon_in_end" value={settings.afternoon_in_end} onChange={handleChange} className="w-full mt-2 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-center font-bold dark:text-white" />
+              <input type="text" maxLength={5} placeholder="13:00" name="afternoon_in_end" value={settings.afternoon_in_end} onChange={handleChange} className="w-full mt-2 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-center font-bold dark:text-white tracking-widest" />
             </div>
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">เลิกงานปกติ ไม่เกิน</label>
-              <input type="time" name="evening_out_end" value={settings.evening_out_end} onChange={handleChange} className="w-full mt-2 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-center font-bold dark:text-white" />
+              <input type="text" maxLength={5} placeholder="17:00" name="evening_out_end" value={settings.evening_out_end} onChange={handleChange} className="w-full mt-2 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-center font-bold dark:text-white tracking-widest" />
             </div>
           </div>
         </div>
 
         <div className="p-6 sm:p-8 bg-orange-50/30 dark:bg-orange-950/20">
           <h2 className="text-xl font-bold text-orange-800 dark:text-orange-400 mb-6 flex items-center gap-2">
-            <Flame className="w-6 h-6" /> ตั้งค่าการทำ OT
+            <Flame className="w-6 h-6" /> ตั้งค่าการทำ OT (แบบ 24 ชั่วโมง)
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-orange-200 dark:border-orange-900/50 shadow-sm">
               <label className="block text-sm font-bold text-orange-700 dark:text-orange-400 mb-1">เวลาสแกนนิ้วเริ่ม OT</label>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">พนักงานต้องสแกน "เข้า OT" หลังเวลานี้</p>
-              <input type="time" name="ot_in_end" value={settings.ot_in_end} onChange={handleChange} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-orange-200 dark:border-orange-900/50 rounded-lg outline-none text-center font-bold text-orange-700 dark:text-orange-400" />
+              <input type="text" maxLength={5} placeholder="18:30" name="ot_in_end" value={settings.ot_in_end} onChange={handleChange} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-orange-200 dark:border-orange-900/50 rounded-lg outline-none text-center font-bold text-orange-700 dark:text-orange-400 tracking-widest" />
             </div>
           </div>
         </div>

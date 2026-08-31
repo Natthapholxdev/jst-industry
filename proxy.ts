@@ -2,8 +2,71 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyAuth } from '@/lib/auth-server';
 
+const SQLI_PATTERNS = [
+  /(\b(UNION\s+SELECT|DROP\s+TABLE|ALTER\s+TABLE|TRUNCATE\s+TABLE|DELETE\s+FROM)\b)/i,
+  /('|")\s*(OR|AND)\s*('|")?\w+\s*=\s*('|")?\w+/i, 
+  /--\s*$/i 
+];
+const rateLimitMap = new Map<string, { count: number, startTime: number }>();
+
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
+  const ip = request.ip || 'unknown_ip';
+
+  // --- 🛡️ WAF (Web Application Firewall) สำหรับ API ---
+  if (pathname.startsWith('/api/')) {
+    const userAgent = request.headers.get('user-agent') || '';
+    
+    // 1. ตรวจจับ Postman / cURL / Burp
+    if (userAgent.includes('PostmanRuntime') || userAgent.includes('curl/') || userAgent.includes('Burp')) {
+      console.warn(`🛑 [BLOCKED] ตรวจพบการใช้เครื่องมือยิง API ตรงๆ จาก IP: ${ip}`);
+      return NextResponse.json({ error: 'API Direct Access Forbidden' }, { status: 403 });
+    }
+
+    // 2. Rate Limiting (100 req / min)
+    const now = Date.now();
+    const windowMs = 60 * 1000;
+    const maxRequests = 100;
+    const rateData = rateLimitMap.get(ip) || { count: 0, startTime: now };
+    
+    if (now - rateData.startTime > windowMs) {
+      rateData.count = 1;
+      rateData.startTime = now;
+    } else {
+      rateData.count++;
+    }
+    rateLimitMap.set(ip, rateData);
+
+    if (rateData.count > maxRequests) {
+      console.warn(`🔥 [RATE LIMIT] IP: ${ip} โดนระงับชั่วคราว`);
+      return NextResponse.json({ error: 'Too Many Requests (Rate Limited)' }, { status: 429 });
+    }
+
+    // 3. ตรวจสอบ SQL Injection (Query String)
+    const decodedSearch = decodeURIComponent(search);
+    for (const pattern of SQLI_PATTERNS) {
+      if (pattern.test(decodedSearch)) {
+        console.warn(`🚨 [SECURITY] SQL Injection Query | IP: ${ip} | URL: ${pathname}${search}`);
+        return NextResponse.json({ error: 'Blocked by WAF' }, { status: 403 });
+      }
+    }
+
+    // 4. ตรวจสอบ SQL Injection (Body)
+    if (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH') {
+      try {
+        const clonedReq = request.clone();
+        const textBody = await clonedReq.text();
+        for (const pattern of SQLI_PATTERNS) {
+          if (pattern.test(textBody)) {
+            console.warn(`🚨 [SECURITY] SQL Injection Body | IP: ${ip} | Payload: ${textBody}`);
+            return NextResponse.json({ error: 'Blocked by WAF' }, { status: 403 });
+          }
+        }
+      } catch (e) {}
+    }
+  }
+  // --- สิ้นสุด WAF ---
+
   const sessionCookie = request.cookies.get('hr_session');
 
   // Paths that are considered public or auth-related

@@ -53,6 +53,7 @@ export async function POST(request: Request) {
         };
 
         let successCount = 0;
+        let dateCounts: Record<string, number> = {};
 
         for (const row of rawData as any[]) {
           const rawCode = row["หมายเลขพนักงาน"] || row["รหัส "] || row["รหัส"] || row[" รหัส"];
@@ -78,17 +79,19 @@ export async function POST(request: Request) {
           const time_in_2 = times[2] || null;
           const time_out_2 = times[3] || null;
           const time_in_3 = times[4] || null; 
-          const time_out_3 = times[5] || null; 
+          const time_out_3 = times[5] || null;
+          const time_in_4 = times[6] || null;
+          const time_out_4 = times[7] || null;
 
-          // 🌟 ซ่อมแซมวันที่ (เผื่อมันยังหลุดมาเป็นฟอร์แมตที่มีทับ /)
+          // 🌟 ซ่อมแซมวันที่ (ในไทยส่วนใหญ่ใช้ DD/MM/YYYY)
           let formattedDate = logDate;
           if (logDate.includes("/")) {
             const parts = logDate.split("/");
             if (parts.length === 3) {
               let year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-              let month = parts[0].padStart(2, '0');
-              let day = parts[1].padStart(2, '0');
-              if (Number(month) > 12) { // สลับวันกับเดือน กรณีมันมาเป็น DD/MM/YYYY
+              let day = parts[0].padStart(2, '0');
+              let month = parts[1].padStart(2, '0');
+              if (Number(month) > 12) { // สลับวันกับเดือน กรณีมันมาเป็น MM/DD/YYYY
                 const temp = month; month = day; day = temp;
               }
               formattedDate = `${year}-${month}-${day}`;
@@ -105,17 +108,19 @@ export async function POST(request: Request) {
               log_date: formattedDate,
               time_in_1, time_out_1,
               time_in_2, time_out_2,
-              time_in_3, time_out_3, 
+              time_in_3, time_out_3,
+              time_in_4, time_out_4
             },
             { onConflict: "employee_id, log_date" },
           );
 
           if (!error) {
             successCount++;
+            dateCounts[formattedDate] = (dateCounts[formattedDate] || 0) + 1;
           }
         }
         
-        sendEvent({ type: 'done', count: successCount });
+        sendEvent({ type: 'done', count: successCount, summary: dateCounts });
         controller.close();
       }
     });

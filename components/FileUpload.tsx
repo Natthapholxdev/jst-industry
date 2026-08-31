@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { UploadCloud } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 interface FileUploadProps {
   onSuccess?: () => void;
@@ -27,7 +29,7 @@ export default function FileUpload({ onSuccess }: FileUploadProps) {
       });
       
       if (!response.ok) {
-        alert('เกิดข้อผิดพลาดในการนำเข้าข้อมูล');
+        Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล', 'error');
         setIsUploading(false);
         return;
       }
@@ -53,21 +55,40 @@ export default function FileUpload({ onSuccess }: FileUploadProps) {
               if (data.type === 'progress') {
                 setUploadStatus(`กำลังบันทึก: ${data.employee} (${data.date})`);
               } else if (data.type === 'done') {
-                alert(`นำเข้าข้อมูลสำเร็จ! บันทึกไปทั้งหมด ${data.count} รายการ`);
-                if (onSuccess) {
-                  onSuccess();
-                } else {
-                  router.refresh(); 
+                // Prepare HTML summary by date
+                let summaryHtml = '<div class="text-left mt-3 max-h-40 overflow-y-auto border border-slate-200 rounded p-2 bg-slate-50 text-sm">';
+                if (data.summary && Object.keys(data.summary).length > 0) {
+                  summaryHtml += '<b>สรุปข้อมูลที่นำเข้าตามวันที่:</b><ul class="list-disc pl-5 mt-2">';
+                  Object.entries(data.summary)
+                    .sort(([a], [b]) => a.localeCompare(b)) // Sort dates chronologically
+                    .forEach(([dateStr, count]) => {
+                      summaryHtml += `<li>วันที่ ${dateStr} : <b>${count}</b> รายการ</li>`;
+                    });
+                  summaryHtml += '</ul>';
                 }
+                summaryHtml += '</div>';
+
+                Swal.fire({
+                  icon: 'success',
+                  title: 'นำเข้าข้อมูลสำเร็จ!',
+                  html: `บันทึกข้อมูลทั้งหมด <b>${data.count}</b> รายการ${summaryHtml}`,
+                  confirmButtonColor: '#4f46e5'
+                }).then(() => {
+                  if (onSuccess) {
+                    onSuccess();
+                  } else {
+                    router.refresh(); 
+                  }
+                });
               } else if (data.error) {
-                alert('เกิดข้อผิดพลาด: ' + data.error);
+                Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาด: ' + data.error, 'error');
               }
             } catch (e) {}
           }
         }
       }
     } catch (error) {
-      alert('ไม่สามารถเชื่อมต่อระบบได้');
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อระบบได้', 'error');
     } finally {
       setIsUploading(false);
       setUploadStatus('');
@@ -86,7 +107,7 @@ export default function FileUpload({ onSuccess }: FileUploadProps) {
         className={`cursor-pointer inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold transition shadow-sm border ${
           isUploading 
             ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed' 
-            : 'bg-slate-800 hover:bg-slate-900 text-white border-slate-800'
+            : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600'
         }`}
       >
         {isUploading ? (
@@ -95,7 +116,9 @@ export default function FileUpload({ onSuccess }: FileUploadProps) {
             กำลังอัปโหลด...
           </span>
         ) : (
-          '📥 นำเข้า Excel'
+          <span className="flex items-center gap-2">
+            <UploadCloud className="w-5 h-5" /> นำเข้า Excel
+          </span>
         )}
       </label>
       {uploadStatus && (

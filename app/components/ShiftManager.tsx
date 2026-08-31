@@ -90,10 +90,31 @@ export default function ShiftManager() {
             <form onSubmit={handleSave} className="space-y-4">
               <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">ชื่อกะ</label><input required type="text" value={formData.name_th} onChange={e => setFormData({...formData, name_th: e.target.value})} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-700 dark:text-white" /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">เวลาเข้า</label><input required type="time" value={formData.time_in} onChange={e => setFormData({...formData, time_in: e.target.value})} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-700 dark:text-white" /></div>
-                <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">เวลาออก</label><input required type="time" value={formData.time_out} onChange={e => setFormData({...formData, time_out: e.target.value})} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-700 dark:text-white" /></div>
+                <div>
+                  <label className="block text-sm font-bold mb-1 dark:text-slate-300">เวลาเข้า (24 ชม.)</label>
+                  <input required type="text" maxLength={5} placeholder="08:00" value={formData.time_in} onChange={e => {
+                    let val = e.target.value.replace(/[^0-9:]/g, '');
+                    if (val.length === 2 && !val.includes(':') && e.target.value.length === 2) val += ':';
+                    setFormData({...formData, time_in: val});
+                  }} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-700 dark:text-white tracking-widest text-center font-bold" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1 dark:text-slate-300">เวลาออก (24 ชม.)</label>
+                  <input required type="text" maxLength={5} placeholder="17:00" value={formData.time_out} onChange={e => {
+                    let val = e.target.value.replace(/[^0-9:]/g, '');
+                    if (val.length === 2 && !val.includes(':') && e.target.value.length === 2) val += ':';
+                    setFormData({...formData, time_out: val});
+                  }} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-700 dark:text-white tracking-widest text-center font-bold" />
+                </div>
               </div>
-              <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">เวลาเริ่ม OT</label><input required type="time" value={formData.ot_start_time} onChange={e => setFormData({...formData, ot_start_time: e.target.value})} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-700 dark:text-white" /></div>
+              <div>
+                <label className="block text-sm font-bold mb-1 dark:text-slate-300">เวลาเริ่ม OT (24 ชม.)</label>
+                <input required type="text" maxLength={5} placeholder="18:30" value={formData.ot_start_time} onChange={e => {
+                  let val = e.target.value.replace(/[^0-9:]/g, '');
+                  if (val.length === 2 && !val.includes(':') && e.target.value.length === 2) val += ':';
+                  setFormData({...formData, ot_start_time: val});
+                }} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-700 dark:text-white tracking-widest text-center font-bold" />
+              </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg font-bold dark:text-white">ยกเลิก</button>
                 <button type="submit" className="px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-bold">บันทึก</button>

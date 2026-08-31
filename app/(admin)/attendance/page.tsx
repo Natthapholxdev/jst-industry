@@ -202,6 +202,9 @@ export default function AttendancePage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          <Link href="/attendance-person" className="px-3 py-2 rounded-lg font-bold text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-sm flex items-center gap-2">
+            <User className="w-4 h-4" /> ดูรายบุคคล
+          </Link>
           <button 
             onClick={() => setShowSpecialPayOnly(!showSpecialPayOnly)}
             className={`px-3 py-2 rounded-lg font-bold text-sm border transition shadow-sm flex items-center gap-2 ${showSpecialPayOnly ? 'bg-orange-100 text-orange-700 border-orange-300' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300'}`}
@@ -290,12 +293,17 @@ export default function AttendancePage() {
                   <th className="px-4 py-3 text-left text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-16 z-20 min-w-[150px]">ชื่อ-นามสกุล</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200 border-l bborder-slate-200 dark:border-slate-700">เข้าเช้า</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200">ออกเที่ยง</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200">เข้าบ่าย</th>
+                  <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200 border-l bborder-slate-200 dark:border-slate-700">เข้าบ่าย</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200">เลิกงาน</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT (3)</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-orange-700 bg-orange-100/50">ออก OT (3)</th>
+                  <th className="px-2 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-100/50 border-l border-indigo-200">เข้าพิเศษ (4)</th>
+                  <th className="px-2 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-100/50">ออกพิเศษ (4)</th>
                   <th className="px-4 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200 border-l bborder-slate-200 dark:border-slate-700">หมายเหตุ</th>
                   <th className="px-2 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200 min-w-[110px]">อัตราค่าแรง</th>
+                  <th className="px-2 py-3 text-center text-sm font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200 min-w-[110px]">ตัวคูณ OT</th>
+                  <th className="px-2 py-3 text-center text-sm font-bold text-emerald-700 bg-emerald-50/50 border-l border-emerald-200 min-w-[110px]">เงินเพิ่ม (฿)</th>
+                  <th className="px-2 py-3 text-center text-sm font-bold text-rose-700 bg-rose-50/50 border-l border-rose-200 min-w-[110px]">หักเงิน (฿)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white dark:bg-slate-800">
@@ -352,6 +360,17 @@ export default function AttendancePage() {
                         </td>
                       ))}
 
+                      {/* วนลูปเวลาพิเศษ (4) */}
+                      {["time_in_4", "time_out_4"].map((field, idx) => (
+                        <td key={field} className={`px-1 py-2 text-center bg-indigo-50/20 ${idx === 0 ? "border-l border-indigo-100" : ""}`}>
+                          <ThaiTimeInput
+                            value={emp[field]}
+                            onChange={(val) => handleInputChange(emp.id, field, val)}
+                            theme="indigo"
+                          />
+                        </td>
+                      ))}
+
                       <td className="px-2 py-2 text-center border-l bborder-slate-100 dark:border-slate-700/50">
                         <input
                           type="text" placeholder="ระบุเหตุผล..."
@@ -361,7 +380,6 @@ export default function AttendancePage() {
                         />
                       </td>
 
-                      {/* อัตราค่าแรง */}
                       <td className="px-2 py-2 text-center border-l border-indigo-100 bg-indigo-50/10">
                         <select
                           value={emp.pay_multiplier || 1.0}
@@ -374,6 +392,39 @@ export default function AttendancePage() {
                         {emp.is_weekly_day_off && !isHoliday && (
                           <div className="text-[9px] text-orange-600 font-bold mt-1 bg-orange-100 rounded-full px-1">วันหยุดสัปดาห์</div>
                         )}
+                      </td>
+                      {/* ตัวคูณ OT */}
+                      <td className="px-2 py-2 text-center border-l border-orange-100 bg-orange-50/10">
+                        <select
+                          value={emp.ot_multiplier || 1.0}
+                          onChange={(e) => handleInputChange(emp.id, "ot_multiplier", e.target.value)}
+                          className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition shadow-sm cursor-pointer ${Number(emp.ot_multiplier) > 1.0 ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                        >
+                          <option value="1.0">x1.0</option>
+                          <option value="1.5">x1.5</option>
+                          <option value="2.0">x2.0</option>
+                          <option value="3.0">x3.0</option>
+                        </select>
+                      </td>
+                      {/* เงินเพิ่ม */}
+                      <td className="px-2 py-2 text-center border-l border-emerald-100 bg-emerald-50/10">
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={emp.extra_add || ''}
+                          onChange={(e) => handleInputChange(emp.id, "extra_add", e.target.value)}
+                          className="w-full min-w-[60px] px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition shadow-sm bg-slate-50 text-slate-700 border-slate-200"
+                        />
+                      </td>
+                      {/* หักเงิน */}
+                      <td className="px-2 py-2 text-center border-l border-rose-100 bg-rose-50/10">
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={emp.extra_deduct || ''}
+                          onChange={(e) => handleInputChange(emp.id, "extra_deduct", e.target.value)}
+                          className="w-full min-w-[60px] px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-rose-500 outline-none transition shadow-sm bg-slate-50 text-slate-700 border-slate-200"
+                        />
                       </td>
                     </tr>
                   );

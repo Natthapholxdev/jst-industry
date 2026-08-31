@@ -1,8 +1,47 @@
 'use client';
-import { useRouter } from 'next/navigation';
-import React from "react";
+import { useRouter, usePathname } from 'next/navigation';
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, Clock, Users, Building2, CalendarOff, FileText, BarChart3, Settings, LogOut } from 'lucide-react';
+import { 
+  LayoutDashboard, Clock, Users, Building2, CalendarOff, 
+  FileText, BarChart3, Settings, LogOut, User,
+  ChevronDown, ChevronRight, ChevronLeft, Menu, X, ShieldAlert,
+  History, Wallet, BookOpen
+} from 'lucide-react';
+
+const MENU_GROUPS = [
+  {
+    title: "MAIN",
+    items: [
+      { name: "ภาพรวม", href: "/dashboard", icon: LayoutDashboard, color: "indigo" },
+    ]
+  },
+  {
+    title: "TIME & ATTENDANCE",
+    items: [
+      { name: "จัดการเวลา (รายวัน)", href: "/attendance", icon: Clock, color: "emerald" },
+      { name: "จัดการเวลา (รายบุคคล)", href: "/attendance-person", icon: User, color: "emerald" },
+      { name: "อนุมัติการลา", href: "/leaves", icon: CalendarOff, color: "rose" },
+    ]
+  },
+  {
+    title: "HR & PAYROLL",
+    items: [
+      { name: "ข้อมูลพนักงาน", href: "/employees", icon: Users, color: "blue" },
+      { name: "จัดการแผนก", href: "/departments", icon: Building2, color: "cyan" },
+      { name: "สรุปค่าจ้างและโอที", href: "/ot-reports", icon: Wallet, color: "orange" },
+    ]
+  },
+  {
+    title: "SYSTEM SETTINGS",
+    items: [
+      { name: "ผู้ดูแลระบบ", href: "/admin-users", icon: ShieldAlert, color: "purple" },
+      { name: "ประวัติการใช้งาน (Log)", href: "/admin-logs", icon: History, color: "slate" },
+      { name: "คู่มือการใช้งาน", href: "/manual", icon: BookOpen, color: "indigo" },
+      { name: "ตั้งค่าระบบ", href: "/settings", icon: Settings, color: "purple" },
+    ]
+  }
+];
 
 export default function AdminDashboardLayout({
   children,
@@ -10,6 +49,17 @@ export default function AdminDashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<string[]>(MENU_GROUPS.map(g => g.title)); // Open all by default
+
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
+
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -17,122 +67,233 @@ export default function AdminDashboardLayout({
     router.push('/login');
   };
 
-  return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 font-sans overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">
-      
-      {/* 📱 แถบเมนูสำหรับมือถือ */}
-      <header className="md:hidden bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center px-4 h-16 w-full fixed top-0 z-50 shadow-sm transition-colors">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 dark:bg-indigo-500 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
-            HR
-          </div>
-          <span className="font-extrabold text-lg text-slate-800 dark:text-white">
-            TimeManage
-          </span>
-        </div>
-        <button onClick={handleLogout} className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 text-sm font-bold bg-rose-50 dark:bg-rose-500/10 px-3 py-1.5 rounded-lg transition">
-          ออก
-        </button>
-      </header>
+  const toggleGroup = (title: string) => {
+    if (isSidebarCollapsed) {
+      setIsSidebarCollapsed(false);
+      setOpenGroups(prev => prev.includes(title) ? prev : [...prev, title]);
+      return;
+    }
+    setOpenGroups(prev => 
+      prev.includes(title) 
+        ? prev.filter(t => t !== title) 
+        : [...prev, title]
+    );
+  };
 
-      {/* 💻 Sidebar ด้านซ้าย */}
-      <aside className="hidden md:flex w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20 relative transition-colors">
-        
+  const getThemeColorClass = (color: string, isActive: boolean) => {
+    const themes: Record<string, { active: string; inactive: string; hover: string; icon: string }> = {
+      indigo: { 
+        active: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/30', 
+        inactive: 'text-slate-600 dark:text-slate-300 border-transparent',
+        hover: 'hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-700 dark:hover:text-indigo-400',
+        icon: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400'
+      },
+      emerald: {
+        active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30',
+        inactive: 'text-slate-600 dark:text-slate-300 border-transparent',
+        hover: 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-400',
+        icon: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'
+      },
+      rose: {
+        active: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 border-rose-200 dark:border-rose-500/30',
+        inactive: 'text-slate-600 dark:text-slate-300 border-transparent',
+        hover: 'hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-700 dark:hover:text-rose-400',
+        icon: 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400'
+      },
+      blue: {
+        active: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 border-blue-200 dark:border-blue-500/30',
+        inactive: 'text-slate-600 dark:text-slate-300 border-transparent',
+        hover: 'hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-400',
+        icon: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400'
+      },
+      cyan: {
+        active: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 border-cyan-200 dark:border-cyan-500/30',
+        inactive: 'text-slate-600 dark:text-slate-300 border-transparent',
+        hover: 'hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-700 dark:hover:text-cyan-400',
+        icon: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400'
+      },
+      orange: {
+        active: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200 dark:border-orange-500/30',
+        inactive: 'text-slate-600 dark:text-slate-300 border-transparent',
+        hover: 'hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:text-orange-700 dark:hover:text-orange-400',
+        icon: 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
+      },
+      purple: {
+        active: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 border-purple-200 dark:border-purple-500/30',
+        inactive: 'text-slate-600 dark:text-slate-300 border-transparent',
+        hover: 'hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:text-purple-700 dark:hover:text-purple-400',
+        icon: 'bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400'
+      },
+      slate: {
+        active: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600',
+        inactive: 'text-slate-600 dark:text-slate-300 border-transparent',
+        hover: 'hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200',
+        icon: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+      }
+    };
+
+    const t = themes[color] || themes.indigo;
+    
+    if (isActive) return `${t.active} border font-extrabold shadow-sm`;
+    return `${t.inactive} ${t.hover} border font-bold`;
+  };
+
+  const getIconColorClass = (color: string, isActive: boolean) => {
+    if (isActive) return "bg-white/50 dark:bg-black/20 text-current";
+    return "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-current group-hover:bg-white/50 dark:group-hover:bg-black/20";
+  };
+
+  const SidebarContent = ({ isMobile = false }) => {
+    const collapsed = !isMobile && isSidebarCollapsed;
+    return (
+      <div className="flex flex-col h-full bg-white dark:bg-slate-900 shadow-[4px_0_24px_rgba(0,0,0,0.02)] border-r border-slate-200 dark:border-slate-800 transition-all duration-300">
         {/* โลโก้ */}
-        <div className="h-20 flex items-center px-6 border-b border-slate-100 dark:border-slate-700/50">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-black shadow-md">
+        <div className="h-16 md:h-20 flex items-center px-4 border-b border-slate-100 dark:border-slate-800 shrink-0 overflow-hidden">
+          <div className="min-w-10 min-h-10 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black shadow-lg shadow-indigo-500/30">
             HR
           </div>
-          <span className="ml-3 font-black text-xl text-slate-800 dark:text-white tracking-tight">
-            TimeManage
-          </span>
+          {!collapsed && (
+            <span className="ml-3 font-black text-xl text-slate-800 dark:text-white tracking-tight whitespace-nowrap animate-in fade-in duration-300">
+              TimeManage
+            </span>
+          )}
         </div>
 
         {/* เมนูนำทาง */}
-        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-          
-          <div className="px-4 pb-2 text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 tracking-wider">เมนูหลัก (MAIN)</div>
+        <nav className={`flex-1 ${collapsed ? 'px-2' : 'px-4'} py-4 space-y-4 overflow-y-auto overflow-x-hidden custom-scrollbar transition-all duration-300`}>
+          {MENU_GROUPS.map((group, gIndex) => {
+            const isOpen = openGroups.includes(group.title) || collapsed;
+            return (
+              <div key={gIndex} className="space-y-1">
+                {/* Group Header */}
+                {!collapsed ? (
+                  <button 
+                    onClick={() => toggleGroup(group.title)}
+                    className="w-full flex items-center justify-between px-2 py-2 text-xs font-black text-slate-400 dark:text-slate-500 tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    {group.title}
+                    {isOpen ? <ChevronDown className="w-4 h-4 opacity-70" /> : <ChevronRight className="w-4 h-4 opacity-70" />}
+                  </button>
+                ) : (
+                  <div className="px-2 py-3 text-center">
+                    <div className="h-[2px] w-8 mx-auto bg-slate-200 dark:bg-slate-700 rounded-full" />
+                  </div>
+                )}
 
-          <Link href="/dashboard" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-400 hover:bg-indigo-50/80 dark:hover:bg-indigo-500/10 transition-all duration-200 font-bold border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-            </div>
-            ภาพรวม
-          </Link>
-
-          <Link href="/attendance" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/10 transition-all duration-200 font-bold border border-transparent hover:border-emerald-100 dark:hover:border-emerald-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </div>
-            จัดการเวลา
-          </Link>
-
-          <Link href="/employees" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-500/10 transition-all duration-200 font-bold border border-transparent hover:border-blue-100 dark:hover:border-blue-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-            </div>
-            พนักงาน
-          </Link>
-
-          <Link href="/departments" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-cyan-700 dark:hover:text-cyan-400 hover:bg-cyan-50/80 dark:hover:bg-cyan-500/10 transition-all duration-200 font-bold border border-transparent hover:border-cyan-100 dark:hover:border-cyan-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-cyan-100 dark:group-hover:bg-cyan-500/20 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-            </div>
-            จัดการแผนก
-          </Link>
-
-          <Link href="/leaves" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-400 hover:bg-rose-50/80 dark:hover:bg-rose-500/10 transition-all duration-200 font-bold border border-transparent hover:border-rose-100 dark:hover:border-rose-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-rose-100 dark:group-hover:bg-rose-500/20 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-            </div>
-            อนุมัติการลา
-          </Link>
-
-          <div className="px-4 pb-2 pt-6 text-xs font-black text-slate-400 dark:text-slate-500 tracking-wider">รายงานและระบบ (SYSTEM)</div>
-
-          <Link href="/admin-users" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-400 hover:bg-indigo-50/80 dark:hover:bg-indigo-500/10 transition-all duration-200 font-bold border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-            </div>
-            จัดการผู้ดูแลระบบ
-          </Link>
-
-          <Link href="/admin-logs" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/10 transition-all duration-200 font-bold border border-transparent hover:border-emerald-100 dark:hover:border-emerald-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-            </div>
-            ประวัติใช้งาน (Log)
-          </Link>
-
-
-          <Link href="/ot-reports" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-orange-700 dark:hover:text-orange-400 hover:bg-orange-50/80 dark:hover:bg-orange-500/10 transition-all duration-200 font-bold border border-transparent hover:border-orange-100 dark:hover:border-orange-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </div>
-            รายงานสรุปโอที
-          </Link>
-
-          <Link href="/settings" className="group flex items-center px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:text-purple-700 dark:hover:text-purple-400 hover:bg-purple-50/80 dark:hover:bg-purple-500/10 transition-all duration-200 font-bold border border-transparent hover:border-purple-100 dark:hover:border-purple-500/20">
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-purple-100 dark:group-hover:bg-purple-500/20 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors mr-3">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            </div>
-            ตั้งค่าระบบ
-          </Link>
+                {/* Items */}
+                <div className={`space-y-1.5 overflow-hidden transition-all duration-300 origin-top ${isOpen ? "max-h-[500px] opacity-100 scale-y-100" : "max-h-0 opacity-0 scale-y-0"}`}>
+                  {group.items.map((item, iIndex) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link 
+                        key={iIndex} 
+                        href={item.href} 
+                        title={collapsed ? item.name : undefined}
+                        className={`group flex items-center ${collapsed ? 'justify-center px-0' : 'px-4'} py-3 rounded-xl transition-all duration-200 ${getThemeColorClass(item.color, isActive)}`}
+                      >
+                        <div className={`p-1.5 rounded-lg transition-colors ${!collapsed && 'mr-3'} shadow-sm ${getIconColorClass(item.color, isActive)}`}>
+                          <item.icon className="w-5 h-5" />
+                        </div>
+                        {!collapsed && <span className="truncate">{item.name}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
         {/* ปุ่มออกจากระบบ */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-700/50">
-          <button onClick={handleLogout} className="group flex items-center justify-center w-full px-4 py-3.5 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-500/30 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all duration-200 shadow-sm font-bold">
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-            ออกจากระบบ
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
+          <button 
+            onClick={handleLogout} 
+            title={collapsed ? "ออกจากระบบ" : undefined}
+            className={`group flex items-center justify-center w-full ${collapsed ? 'px-0' : 'px-4'} py-3.5 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-500/30 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all duration-200 shadow-sm font-bold`}
+          >
+            <LogOut className={`w-5 h-5 ${!collapsed && 'mr-2'} opacity-70 group-hover:opacity-100 transition-opacity`} />
+            {!collapsed && "ออกจากระบบ"}
           </button>
         </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-screen bg-slate-50 dark:bg-[#0B1120] font-sans overflow-hidden text-slate-900 dark:text-slate-100 transition-colors selection:bg-indigo-500/30">
+      
+      {/* 📱 แถบเมนูสำหรับมือถือ */}
+      <header className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center px-4 h-16 w-full fixed top-0 z-50 shadow-sm transition-colors">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsMobileOpen(true)}
+            className="p-2 -ml-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
+            HR
+          </div>
+        </div>
+      </header>
+
+      {/* 📱 Mobile Sidebar Overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] md:hidden transition-opacity"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* 📱 Mobile Sidebar Drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-[70] w-72 bg-white transform transition-transform duration-300 ease-in-out md:hidden ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <SidebarContent isMobile={true} />
+        <button 
+          onClick={() => setIsMobileOpen(false)}
+          className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </aside>
+
+      {/* 💻 Sidebar ด้านซ้าย (Desktop) */}
+      <aside className={`hidden md:flex flex-col z-20 relative shrink-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-[88px]' : 'w-[280px]'}`}>
+        <SidebarContent isMobile={false} />
+        
+        {/* Toggle Collapse Button */}
+        <button 
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3 top-24 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-sm z-30 transition-transform hover:scale-110"
+        >
+          {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
       </aside>
 
       {/* 🚀 พื้นที่สำหรับแสดงเนื้อหา */}
-      <main className="flex-1 h-screen overflow-y-auto bg-slate-50 dark:bg-slate-900/50 dark:bg-slate-900/50 pt-16 md:pt-0 transition-colors">
-        <div className="max-w-7xl mx-auto">{children}</div>
+      <main className="flex-1 h-screen overflow-y-auto bg-slate-50 dark:bg-[#0B1120] pt-16 md:pt-0 scroll-smooth">
+        <div className="max-w-[1600px] mx-auto min-h-full flex flex-col p-2 sm:p-4 md:p-6 lg:p-8 transition-all animate-in fade-in duration-500">
+          {children}
+        </div>
       </main>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: rgba(156, 163, 175, 0.3);
+          border-radius: 20px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: rgba(75, 85, 99, 0.4);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(156, 163, 175, 0.5);
+        }
+      `}</style>
     </div>
   );
 }
