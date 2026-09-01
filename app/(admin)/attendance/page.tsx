@@ -282,7 +282,14 @@ export default function AttendancePage() {
           <div className="p-16 text-center text-slate-500 dark:text-slate-400">กำลังโหลดข้อมูลพนักงาน...</div>
         ) : (
           <div className="overflow-x-auto max-h-[65vh] print:max-h-none print:overflow-visible">
-            <table className="min-w-full divide-y divide-slate-200 relative print:text-xs">
+            <style type="text/css" media="print">{`
+              @page { size: A4 landscape; margin: 10mm; }
+              table { border-collapse: collapse !important; width: 100% !important; }
+              th, td { border: 1px solid #000 !important; color: #000 !important; background-color: transparent !important; }
+              th { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .print\\:hidden { display: none !important; }
+            `}</style>
+            <table className="min-w-full divide-y divide-slate-200 relative print:text-[11px] print:border-collapse">
               <thead className="bg-slate-100 dark:bg-slate-800/50 sticky top-0 z-10 shadow-sm print:static print:shadow-none">
                 <tr>
                   <th className="px-4 py-3 print:px-1 print:py-1 text-left text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-0 z-20 print:static">
