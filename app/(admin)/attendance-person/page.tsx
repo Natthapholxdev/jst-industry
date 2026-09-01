@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Calendar as CalendarIcon, Printer } from 'lucide-react';
 import ThaiDatePicker from "@/components/ThaiDatePicker";
 import Swal from "sweetalert2";
 import { supabase } from "@/lib/supabase";
@@ -156,8 +156,13 @@ export default function AttendancePersonPage() {
           time_out_2: log?.time_out_2 || "",
           time_in_3: log?.time_in_3 || "",
           time_out_3: log?.time_out_3 || "",
+          time_in_4: log?.time_in_4 || "",
+          time_out_4: log?.time_out_4 || "",
           remark: log?.remark || "",
           pay_multiplier: log?.pay_multiplier ?? defaultMultiplier,
+          ot_multiplier: log?.ot_multiplier || 1.0,
+          extra_add: log?.extra_add || "",
+          extra_deduct: log?.extra_deduct || "",
           is_holiday: !!holiday,
           holiday_name: holiday?.name || "",
           is_edited: false
@@ -222,8 +227,8 @@ export default function AttendancePersonPage() {
   };
 
   return (
-    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto font-sans">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto font-sans print:p-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 print:hidden">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
             <Link href="/attendance" className="text-slate-400 hover:text-indigo-600 dark:text-indigo-400 transition">&larr;</Link>
@@ -233,8 +238,8 @@ export default function AttendancePersonPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6 print:hidden">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
           <div className="md:col-span-1">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">เลือกพนักงาน</label>
             <select 
@@ -262,19 +267,34 @@ export default function AttendancePersonPage() {
             </div>
           </div>
           
-          <div className="md:col-span-1">
+          <div className="md:col-span-2 flex gap-3 h-[46px] mt-2">
             <button 
               onClick={fetchPersonRecords}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm transition"
+              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center justify-center gap-2 shadow-sm transition"
             >
               <Search className="w-5 h-5" /> ดึงข้อมูล
+            </button>
+            <button 
+              onClick={() => window.print()}
+              className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold rounded-lg flex items-center justify-center gap-2 shadow-sm transition"
+            >
+              <Printer className="w-5 h-5" /> พิมพ์รายงาน
             </button>
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
+      {/* หัวรายงานสำหรับ Print เท่านั้น */}
+      <div className="hidden print:block mb-4 text-center">
+        <h2 className="text-xl font-bold">รายงานเวลาทำงานรายบุคคล</h2>
+        <p className="mt-1">
+          พนักงาน: {employees.find(e => e.id === selectedEmpId)?.full_name || ""} ({employees.find(e => e.id === selectedEmpId)?.emp_code || ""})
+        </p>
+        <p>ช่วงเวลา: {startDate} ถึง {endDate}</p>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden print:border-none print:shadow-none">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center print:hidden">
           <h2 className="font-bold text-slate-700 dark:text-slate-200">
             ข้อมูลการลงเวลา {records.length > 0 && `(พบ ${records.length} วัน)`}
           </h2>
@@ -288,36 +308,36 @@ export default function AttendancePersonPage() {
         {isLoading ? (
           <div className="p-16 text-center text-slate-500 font-medium">กำลังโหลดข้อมูล...</div>
         ) : records.length === 0 ? (
-          <div className="p-16 text-center text-slate-500 font-medium">กรุณาเลือกพนักงานและวันที่ จากนั้นกด "ดึงข้อมูล"</div>
+          <div className="p-16 text-center text-slate-500 font-medium print:hidden">กรุณาเลือกพนักงานและวันที่ จากนั้นกด "ดึงข้อมูล"</div>
         ) : (
-          <div className="overflow-x-auto max-h-[60vh]">
-            <table className="min-w-full divide-y divide-slate-200 relative">
-              <thead className="bg-slate-100 dark:bg-slate-800/50 sticky top-0 z-10 shadow-sm">
+          <div className="overflow-x-auto max-h-[60vh] print:max-h-none print:overflow-visible">
+            <table className="min-w-full divide-y divide-slate-200 relative print:text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-800/50 sticky top-0 z-10 shadow-sm print:static print:shadow-none">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-bold text-slate-700 dark:text-slate-200 sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 min-w-[120px]">วันที่</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าเช้า</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200">ออกเที่ยง</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าบ่าย</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200">เลิกงาน</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT (3)</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-orange-700 bg-orange-100/50">ออก OT (3)</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-100/50 border-l border-indigo-200">เข้าพิเศษ (4)</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-100/50">ออกพิเศษ (4)</th>
-                  <th className="px-4 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">หมายเหตุ</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200">อัตราค่าแรง</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200">ตัวคูณ OT</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-emerald-700 bg-emerald-50/50 border-l border-emerald-200">เงินเพิ่ม</th>
-                  <th className="px-2 py-3 text-center text-sm font-bold text-rose-700 bg-rose-50/50 border-l border-rose-200">หักเงิน</th>
+                  <th className="px-4 py-3 print:px-1 print:py-1 text-left text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 sticky left-0 z-20 print:static bg-slate-100 dark:bg-slate-800 min-w-[120px] print:min-w-0">วันที่</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าเช้า</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">ออกเที่ยง</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าบ่าย</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">เลิกงาน</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50">ออก OT</th>
+                  <th className="px-4 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">หมายเหตุ</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200">อัตราค่าแรง</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200">คูณ OT</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-emerald-700 bg-emerald-50/50 border-l border-emerald-200">เงินเพิ่ม</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-rose-700 bg-rose-50/50 border-l border-rose-200">หักเงิน</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-100/50 border-l border-indigo-200">เข้าพิเศษ</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-100/50">ออกพิเศษ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800 print:divide-slate-300">
                 {records.map((rec) => {
                   const isMissingPunch = (rec.time_in_1 && !rec.time_out_1) || (rec.time_in_2 && !rec.time_out_2);
                   const isAbsent = !rec.time_in_1 && !rec.time_out_1 && !rec.time_in_2 && !rec.time_out_2 && !rec.remark;
                   
                   return (
-                    <tr key={rec.log_date} className={`hover:bg-slate-50 dark:hover:bg-slate-900 transition ${rec.is_edited ? "bg-yellow-50 dark:bg-yellow-900/20" : ""} ${isMissingPunch ? "bg-red-50 dark:bg-red-900/20" : ""} ${rec.is_holiday ? "bg-rose-50/30 dark:bg-rose-900/20" : ""}`}>
-                      <td className="px-4 py-2 text-sm font-bold text-slate-800 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 border-r border-slate-100 dark:border-slate-700">
+                    <tr key={rec.log_date} className={`hover:bg-slate-50 dark:hover:bg-slate-900 transition ${rec.is_edited ? "bg-yellow-50 dark:bg-yellow-900/20" : ""} ${isMissingPunch ? "bg-red-50 dark:bg-red-900/20" : ""} ${rec.is_holiday ? "bg-rose-50/30 dark:bg-rose-900/20" : ""} print:bg-transparent`}>
+                      <td className="px-4 py-2 print:px-1 print:py-1 text-sm print:text-[10px] font-bold text-slate-800 dark:text-slate-200 sticky left-0 print:static bg-white dark:bg-slate-800 print:bg-transparent border-r border-slate-100 dark:border-slate-700">
                         {rec.log_date}
                         {rec.is_holiday && <div className="text-[10px] text-rose-600 font-bold bg-rose-100 rounded px-1 inline-block ml-1 mt-1">{rec.holiday_name}</div>}
                         {isAbsent && !rec.is_holiday && <div className="text-[10px] text-slate-400 font-normal ml-1">ไม่มีข้อมูล</div>}
@@ -325,74 +345,88 @@ export default function AttendancePersonPage() {
                       
                       {/* วนลูปเวลาปกติ */}
                       {["time_in_1", "time_out_1", "time_in_2", "time_out_2"].map((field) => (
-                        <td key={field} className="px-1 py-2 text-center">
-                          <ThaiTimeInput value={rec[field]} onChange={(val) => handleInputChange(rec.log_date, field, val)} theme="indigo" />
+                        <td key={field} className="px-1 py-2 print:px-0 print:py-1 text-center">
+                          <div className="print:hidden">
+                            <ThaiTimeInput value={rec[field]} onChange={(val) => handleInputChange(rec.log_date, field, val)} theme="indigo" />
+                          </div>
+                          <div className="hidden print:block text-[10px]">{rec[field] || "-"}</div>
                         </td>
                       ))}
 
                       {/* วนลูปเวลา OT */}
                       {["time_in_3", "time_out_3"].map((field) => (
-                        <td key={field} className="px-1 py-2 text-center bg-orange-50/20">
-                          <ThaiTimeInput value={rec[field]} onChange={(val) => handleInputChange(rec.log_date, field, val)} theme="orange" />
+                        <td key={field} className="px-1 py-2 print:px-0 print:py-1 text-center bg-orange-50/20 print:bg-transparent">
+                          <div className="print:hidden">
+                            <ThaiTimeInput value={rec[field]} onChange={(val) => handleInputChange(rec.log_date, field, val)} theme="orange" />
+                          </div>
+                          <div className="hidden print:block text-[10px]">{rec[field] || "-"}</div>
                         </td>
                       ))}
 
-                      {/* วนลูปเวลาพิเศษ (4) */}
-                      {["time_in_4", "time_out_4"].map((field) => (
-                        <td key={field} className="px-1 py-2 text-center bg-indigo-50/20">
-                          <ThaiTimeInput value={rec[field]} onChange={(val) => handleInputChange(rec.log_date, field, val)} theme="indigo" />
-                        </td>
-                      ))}
-
-                      <td className="px-2 py-2 text-center border-l border-slate-100 dark:border-slate-700">
+                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-slate-100 dark:border-slate-700">
                         <input
                           type="text" placeholder="ระบุเหตุผล..."
-                          className="w-full min-w-[120px] px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm bg-slate-50 dark:bg-slate-900 dark:text-slate-200"
+                          className="w-full min-w-[120px] px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm bg-slate-50 dark:bg-slate-900 dark:text-slate-200 print:hidden"
                           value={rec.remark || ""}
                           onChange={(e) => handleInputChange(rec.log_date, "remark", e.target.value)}
                         />
+                        <div className="hidden print:block text-[10px] truncate max-w-[100px]">{rec.remark || "-"}</div>
                       </td>
 
                       {/* อัตราค่าแรง */}
-                      <td className="px-2 py-2 text-center border-l border-indigo-100 bg-indigo-50/10">
+                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-indigo-100 bg-indigo-50/10 print:bg-transparent">
                         <select
                           value={rec.pay_multiplier || 1.0}
                           onChange={(e) => handleInputChange(rec.log_date, "pay_multiplier", e.target.value)}
-                          className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm cursor-pointer ${Number(rec.pay_multiplier) > 1.0 ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                          className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm cursor-pointer print:hidden ${Number(rec.pay_multiplier) > 1.0 ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
                         >
                           <option value="1.0">x1.0</option>
                           <option value="2.0">x2.0</option>
                         </select>
+                        <div className="hidden print:block text-[10px]">{rec.pay_multiplier || "1"}</div>
                       </td>
                       {/* ตัวคูณ OT */}
-                      <td className="px-2 py-2 text-center border-l border-orange-100 bg-orange-50/10">
+                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-orange-100 bg-orange-50/10 print:bg-transparent">
                         <select
                           value={rec.ot_multiplier || 1.0}
                           onChange={(e) => handleInputChange(rec.log_date, "ot_multiplier", e.target.value)}
-                          className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition shadow-sm cursor-pointer ${Number(rec.ot_multiplier) > 1.0 ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                          className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition shadow-sm cursor-pointer print:hidden ${Number(rec.ot_multiplier) > 1.0 ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
                         >
                           <option value="1.0">x1.0</option>
                           <option value="1.5">x1.5</option>
                           <option value="2.0">x2.0</option>
                           <option value="3.0">x3.0</option>
                         </select>
+                        <div className="hidden print:block text-[10px]">{rec.ot_multiplier || "1"}</div>
                       </td>
                       {/* เงินเพิ่ม */}
-                      <td className="px-2 py-2 text-center border-l border-emerald-100 bg-emerald-50/10">
+                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-emerald-100 bg-emerald-50/10 print:bg-transparent">
                         <input
                           type="number" placeholder="0" value={rec.extra_add || ''}
                           onChange={(e) => handleInputChange(rec.log_date, "extra_add", e.target.value)}
-                          className="w-full min-w-[60px] px-2 py-1.5 text-xs font-bold border rounded-lg bg-slate-50 text-slate-700 border-slate-200 text-right"
+                          className="w-full min-w-[60px] px-2 py-1.5 text-xs font-bold border rounded-lg bg-slate-50 text-slate-700 border-slate-200 text-right print:hidden"
                         />
+                        <div className="hidden print:block text-[10px]">{rec.extra_add || "-"}</div>
                       </td>
                       {/* หักเงิน */}
-                      <td className="px-2 py-2 text-center border-l border-rose-100 bg-rose-50/10">
+                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-rose-100 bg-rose-50/10 print:bg-transparent">
                         <input
                           type="number" placeholder="0" value={rec.extra_deduct || ''}
                           onChange={(e) => handleInputChange(rec.log_date, "extra_deduct", e.target.value)}
-                          className="w-full min-w-[60px] px-2 py-1.5 text-xs font-bold border rounded-lg bg-slate-50 text-slate-700 border-slate-200 text-right"
+                          className="w-full min-w-[60px] px-2 py-1.5 text-xs font-bold border rounded-lg bg-slate-50 text-slate-700 border-slate-200 text-right print:hidden"
                         />
+                        <div className="hidden print:block text-[10px]">{rec.extra_deduct || "-"}</div>
                       </td>
+                      
+                      {/* วนลูปเวลาพิเศษ (4) ย้ายมาท้ายสุด */}
+                      {["time_in_4", "time_out_4"].map((field) => (
+                        <td key={field} className="px-1 py-2 print:px-0 print:py-1 text-center bg-indigo-50/20 print:bg-transparent">
+                          <div className="print:hidden">
+                            <ThaiTimeInput value={rec[field]} onChange={(val) => handleInputChange(rec.log_date, field, val)} theme="indigo" />
+                          </div>
+                          <div className="hidden print:block text-[10px]">{rec[field] || "-"}</div>
+                        </td>
+                      ))}
                     </tr>
                   );
                 })}
@@ -404,3 +438,4 @@ export default function AttendancePersonPage() {
     </div>
   );
 }
+
