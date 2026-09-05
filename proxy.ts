@@ -51,8 +51,9 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    // 4. ตรวจสอบ SQL Injection (Body)
-    if (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH') {
+    // 4. ตรวจสอบ SQL Injection (Body) - ข้ามการตรวจถ้าเป็นไฟล์อัปโหลด
+    const contentType = request.headers.get('content-type') || '';
+    if ((request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH') && !contentType.includes('multipart/form-data')) {
       try {
         const clonedReq = request.clone();
         const textBody = await clonedReq.text();
