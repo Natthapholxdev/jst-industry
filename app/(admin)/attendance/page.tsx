@@ -26,7 +26,7 @@ const ThaiTimeInput = ({
     return (
       <input
         type="time" step="2" autoFocus
-        className={`w-full min-w-[100px] px-1 py-1.5 text-sm font-bold text-center bg-white dark:bg-slate-800 border-2 rounded-lg outline-none transition-all shadow-sm ${colorClass}`}
+        className={`w-full min-w-[75px] px-1 py-1.5 text-sm font-bold text-center bg-white dark:bg-slate-800 border-2 rounded-lg outline-none transition-all shadow-sm ${colorClass}`}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => setIsEditing(false)}
@@ -37,7 +37,7 @@ const ThaiTimeInput = ({
   return (
     <div
       onClick={() => setIsEditing(true)}
-      className={`w-full min-w-[100px] px-2 py-2 text-sm font-bold border rounded-lg text-center transition-all shadow-sm ${displayClass}`}
+      className={`w-full min-w-[75px] px-2 py-2 text-sm font-bold border rounded-lg text-center transition-all shadow-sm ${displayClass}`}
       title="คลิกเพื่อแก้ไขเวลา"
     >
       {value ? (
@@ -192,7 +192,7 @@ export default function AttendancePage() {
   });
 
   return (
-    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto font-sans print:p-0">
+    <div className="p-2 sm:p-4 max-w-full w-full mx-auto font-sans print:p-0">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 print:hidden">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
@@ -309,7 +309,7 @@ export default function AttendancePage() {
                       <span>รหัส</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3 print:px-1 print:py-1 text-left text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-16 z-20 print:static min-w-[150px] print:min-w-0">ชื่อ-นามสกุล</th>
+                  <th className="px-4 py-3 print:px-1 print:py-1 text-left text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-16 z-20 print:static min-w-[110px] lg:min-w-[150px] print:min-w-0">ชื่อ-นามสกุล</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าเช้า</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">ออกเที่ยง</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าบ่าย</th>
@@ -317,10 +317,10 @@ export default function AttendancePage() {
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50">ออก OT</th>
                   <th className="px-4 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">หมายเหตุ</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200 min-w-[110px] print:min-w-0">อัตราค่าแรง</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200 min-w-[110px] print:min-w-0">ตัวคูณ OT</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-emerald-700 bg-emerald-50/50 border-l border-emerald-200 min-w-[110px] print:min-w-0">เงินเพิ่ม (฿)</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-rose-700 bg-rose-50/50 border-l border-rose-200 min-w-[110px] print:min-w-0">หักเงิน (฿)</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">อัตราค่าแรง</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">ตัวคูณ OT</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-emerald-700 bg-emerald-50/50 border-l border-emerald-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">เงินเพิ่ม (฿)</th>
+                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-rose-700 bg-rose-50/50 border-l border-rose-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">หักเงิน (฿)</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-100/50 border-l border-indigo-200">เข้าพิเศษ</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-100/50">ออกพิเศษ</th>
                 </tr>

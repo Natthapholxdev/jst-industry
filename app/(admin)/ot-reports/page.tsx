@@ -73,23 +73,35 @@ export default function OTReportsPage() {
         const otSettingStart = timeToHours(empShift?.ot_start_time || otSetting);
         const empLogs = logs?.filter(l => l.employee_id === emp.id) || [];
         
-        let totalOTHours = 0;
+        let normal_work_days = 0;
+        let normal_wage_pay = 0;
+        let holiday_work_days = 0;
+        let holiday_wage_pay = 0;
+
         let otDaysCount = 0;
-        let workDaysEarned = 0;
-        let totalOtPay = 0;
+        let ot_1_0_hours = 0, ot_1_0_pay = 0;
+        let ot_1_5_hours = 0, ot_1_5_pay = 0;
+        let ot_2_0_hours = 0, ot_2_0_pay = 0;
+        let ot_3_0_hours = 0, ot_3_0_pay = 0;
+
         let totalExtraAdd = 0;
         let totalExtraDeduct = 0;
 
         empLogs.forEach(log => {
-          // คำนวณวันทำงาน โดยอิงจาก pay_multiplier (เช่น ทำงานในวันหยุดนักขัตฤกษ์ได้ 2 แรง)
+          let payMult = Number(log.pay_multiplier) || 1.0;
           if (log.time_in_1 && log.time_in_1 !== '-') {
-            workDaysEarned += (log.pay_multiplier || 1.0);
+            if (payMult > 1.0) {
+              holiday_work_days++;
+              holiday_wage_pay += (emp.hourly_rate || 0) * payMult;
+            } else {
+              normal_work_days++;
+              normal_wage_pay += (emp.hourly_rate || 0);
+            }
           }
           
           totalExtraAdd += Number(log.extra_add || 0);
           totalExtraDeduct += Number(log.extra_deduct || 0);
 
-          // ดึงเวลาเข้า-ออก ทุกคู่
           const in1 = timeToHours(log.time_in_1);
           const out1 = timeToHours(log.time_out_1);
           const in2 = timeToHours(log.time_in_2);
@@ -100,8 +112,6 @@ export default function OTReportsPage() {
           const out4 = timeToHours(log.time_out_4);
 
           let dailyOT = 0;
-
-          // ตรวจสอบช่วงเวลาที่เกินจาก otSettingStart ในทุกๆ pair
           const pairs = [[in1, out1], [in2, out2], [in3, out3], [in4, out4]];
           
           pairs.forEach(([tIn, tOut]) => {
@@ -116,21 +126,41 @@ export default function OTReportsPage() {
           });
 
           if (dailyOT > 0) {
-            totalOTHours += dailyOT;
             otDaysCount++;
+            const dailyOtMultiplier = Number(log.ot_multiplier) || 1.0;
+            const pay = dailyOT * (emp.ot_hourly_rate || 0) * dailyOtMultiplier;
             
-            // คำนวณเงิน OT ของวันนั้นๆ โดยเอา (ชั่วโมง x เรท OT) x ตัวคูณของวันนั้น
-            const dailyOtMultiplier = log.ot_multiplier || 1.0;
-            totalOtPay += (dailyOT * (emp.ot_hourly_rate || 0)) * dailyOtMultiplier;
+            if (dailyOtMultiplier === 1.5) {
+              ot_1_5_hours += dailyOT;
+              ot_1_5_pay += pay;
+            } else if (dailyOtMultiplier === 2.0) {
+              ot_2_0_hours += dailyOT;
+              ot_2_0_pay += pay;
+            } else if (dailyOtMultiplier === 3.0) {
+              ot_3_0_hours += dailyOT;
+              ot_3_0_pay += pay;
+            } else {
+              ot_1_0_hours += dailyOT;
+              ot_1_0_pay += pay;
+            }
           }
         });
 
-        const totalWagePay = workDaysEarned * (emp.hourly_rate || 0);
+        const totalWagePay = normal_wage_pay + holiday_wage_pay;
+        const totalOTHours = ot_1_0_hours + ot_1_5_hours + ot_2_0_hours + ot_3_0_hours;
+        const totalOtPay = ot_1_0_pay + ot_1_5_pay + ot_2_0_pay + ot_3_0_pay;
 
         return {
           ...emp,
-          work_days: workDaysEarned,
+          normal_work_days,
+          normal_wage_pay,
+          holiday_work_days,
+          holiday_wage_pay,
           ot_days: otDaysCount,
+          ot_1_0_hours, ot_1_0_pay,
+          ot_1_5_hours, ot_1_5_pay,
+          ot_2_0_hours, ot_2_0_pay,
+          ot_3_0_hours, ot_3_0_pay,
           total_ot: totalOTHours > 0 ? totalOTHours.toFixed(2) : '0.00',
           total_ot_pay: totalOtPay,
           total_extra_add: totalExtraAdd,
@@ -141,7 +171,7 @@ export default function OTReportsPage() {
       });
 
       // กรองเอาคนที่มีข้อมูลการทำงาน
-      const hasDataOnly = summary.filter(s => s.work_days > 0 || Number(s.total_ot) > 0).sort((a, b) => b.net_pay - a.net_pay);
+      const hasDataOnly = summary.filter(s => s.normal_work_days > 0 || s.holiday_work_days > 0 || Number(s.total_ot) > 0).sort((a, b) => b.net_pay - a.net_pay);
       setOtData(hasDataOnly);
 
     } catch (error) {
@@ -165,14 +195,21 @@ export default function OTReportsPage() {
       'รหัส': r.emp_code,
       'ชื่อ-นามสกุล': r.full_name,
       'แผนก': r.department,
-      'จำนวนวันทำงาน (แรง)': r.work_days,
-      'รวมค่าแรงปกติ (บาท)': r.total_wage_pay,
-      'จำนวนวันที่ทำ OT': r.ot_days,
-      'รวมชั่วโมง OT': Number(r.total_ot),
-      'รวมค่า OT (บาท)': r.total_ot_pay,
-      'เงินเพิ่ม (บาท)': r.total_extra_add,
-      'หักเงิน (บาท)': r.total_extra_deduct,
-      'รวมเงินสุทธิ (บาท)': r.net_pay
+      'วันทำงานปกติ (วัน)': r.normal_work_days,
+      'ค่าแรงปกติ (บาท)': r.normal_wage_pay,
+      'วันหยุด/พิเศษ (วัน)': r.holiday_work_days,
+      'ค่าแรงวันหยุด (บาท)': r.holiday_wage_pay,
+      'OT x1.0 (ชม.)': r.ot_1_0_hours > 0 ? r.ot_1_0_hours : null,
+      'ค่า OT x1.0': r.ot_1_0_pay > 0 ? r.ot_1_0_pay : null,
+      'OT x1.5 (ชม.)': r.ot_1_5_hours > 0 ? r.ot_1_5_hours : null,
+      'ค่า OT x1.5': r.ot_1_5_pay > 0 ? r.ot_1_5_pay : null,
+      'OT x2.0 (ชม.)': r.ot_2_0_hours > 0 ? r.ot_2_0_hours : null,
+      'ค่า OT x2.0': r.ot_2_0_pay > 0 ? r.ot_2_0_pay : null,
+      'OT x3.0 (ชม.)': r.ot_3_0_hours > 0 ? r.ot_3_0_hours : null,
+      'ค่า OT x3.0': r.ot_3_0_pay > 0 ? r.ot_3_0_pay : null,
+      'เงินเพิ่มรวม (บาท)': r.total_extra_add,
+      'เงินหักรวม (บาท)': r.total_extra_deduct,
+      'รายได้สุทธิ (บาท)': r.net_pay
     }));
 
     const worksheet = xlsx.utils.json_to_sheet(excelData);
@@ -184,7 +221,7 @@ export default function OTReportsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto font-sans">
+    <div className="p-2 sm:p-4 max-w-full w-full mx-auto font-sans">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
@@ -204,6 +241,44 @@ export default function OTReportsPage() {
           <div className="w-full">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">รอบตัดวีค (สิ้นสุด)</label>
             <ThaiDatePicker value={endDate} onChange={val => setEndDate(val)} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none" />
+          </div>
+          <div className="w-full col-span-1 md:col-span-2 flex items-end gap-2 mb-1">
+            <button 
+              onClick={() => {
+                const d = new Date(startDate);
+                const year = d.getFullYear();
+                const month = d.getMonth();
+                setStartDate(new Date(year, month, 1, 7).toISOString().split('T')[0]);
+                setEndDate(new Date(year, month, 15, 7).toISOString().split('T')[0]);
+              }} 
+              className="px-3 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-md transition"
+            >
+              งวด 1-15
+            </button>
+            <button 
+              onClick={() => {
+                const d = new Date(startDate);
+                const year = d.getFullYear();
+                const month = d.getMonth();
+                setStartDate(new Date(year, month, 16, 7).toISOString().split('T')[0]);
+                setEndDate(new Date(year, month + 1, 0, 7).toISOString().split('T')[0]);
+              }} 
+              className="px-3 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-md transition"
+            >
+              งวด 16-สิ้นเดือน
+            </button>
+            <button 
+              onClick={() => {
+                const d = new Date(startDate);
+                const year = d.getFullYear();
+                const month = d.getMonth();
+                setStartDate(new Date(year, month - 1, 26, 7).toISOString().split('T')[0]);
+                setEndDate(new Date(year, month, 25, 7).toISOString().split('T')[0]);
+              }} 
+              className="px-3 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-md transition"
+            >
+              งวด 26-25
+            </button>
           </div>
           {/* แผนก */}
           <div className="w-full relative">
@@ -286,36 +361,52 @@ export default function OTReportsPage() {
       {filteredOtData.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50 dark:bg-slate-900">
+            <thead className="bg-slate-50 dark:bg-slate-900 text-xs text-center whitespace-nowrap">
               <tr>
-                <th className="px-6 py-4 text-left font-bold text-slate-700 dark:text-slate-200">รหัส</th>
-                <th className="px-6 py-4 text-left font-bold text-slate-700 dark:text-slate-200">ชื่อ-นามสกุล</th>
-                <th className="px-6 py-4 text-center font-bold text-slate-700 dark:text-slate-200">มาทำงาน (วัน)</th>
-                <th className="px-6 py-4 text-right font-bold text-indigo-700 dark:text-indigo-400">ค่าแรง (บาท)</th>
-                <th className="px-6 py-4 text-center font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">ทำ OT (วัน)</th>
-                <th className="px-6 py-4 text-center font-bold text-slate-700 dark:text-slate-200">ชม. OT</th>
-                <th className="px-6 py-4 text-right font-bold text-orange-600 dark:text-orange-400">ค่า OT (บาท)</th>
-                <th className="px-6 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400 border-l border-slate-200 dark:border-slate-700">เงินเพิ่ม</th>
-                <th className="px-6 py-4 text-right font-bold text-rose-600 dark:text-rose-400">หักเงิน</th>
-                <th className="px-6 py-4 text-right font-bold text-emerald-700 dark:text-emerald-400 border-l border-slate-200 dark:border-slate-700 text-lg">รายได้สุทธิ</th>
+                <th rowSpan={2} className="px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-200">รหัส</th>
+                <th rowSpan={2} className="px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-200">ชื่อ-นามสกุล</th>
+                <th colSpan={2} className="px-4 py-2 font-bold text-indigo-700 bg-indigo-50/50 border-l border-slate-200">วันทำงานปกติ (x1)</th>
+                <th colSpan={2} className="px-4 py-2 font-bold text-indigo-700 bg-indigo-100/50 border-l border-slate-200">วันหยุดพิเศษ (x2)</th>
+                <th colSpan={4} className="px-4 py-2 font-bold text-orange-700 bg-orange-50/50 border-l border-slate-200">ชั่วโมง OT (แยกเรท)</th>
+                <th rowSpan={2} className="px-4 py-3 font-bold text-orange-700 bg-orange-100/50 border-l border-slate-200">รวมเงิน OT</th>
+                <th rowSpan={2} className="px-4 py-3 font-bold text-emerald-600 border-l border-slate-200">เงินเพิ่ม</th>
+                <th rowSpan={2} className="px-4 py-3 font-bold text-rose-600 border-l border-slate-200">เงินหัก</th>
+                <th rowSpan={2} className="px-6 py-3 font-bold text-emerald-700 border-l border-slate-200 text-base">ยอดสุทธิ</th>
+              </tr>
+              <tr>
+                <th className="px-3 py-2 font-semibold text-slate-600 border-l border-slate-200 border-t">วัน</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 border-t">ยอดเงิน</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 border-l border-slate-200 border-t">วัน</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 border-t">ยอดเงิน</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 border-l border-slate-200 border-t">x1.0</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 border-t">x1.5</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 border-t">x2.0</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 border-t">x3.0</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-sm">
               {filteredOtData.map((emp) => (
-                <tr key={emp.id} className="hover:bg-slate-50 dark:bg-slate-900">
-                  <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">{emp.emp_code}</td>
-                  <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-200">{emp.full_name}</td>
-                  <td className="px-6 py-3 text-center text-slate-600 dark:text-slate-300 font-bold bg-slate-50/50">{emp.work_days}</td>
-                  <td className="px-6 py-3 text-right text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50/20">{emp.total_wage_pay.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                <tr key={emp.id} className="hover:bg-slate-50 dark:bg-slate-900 text-center whitespace-nowrap">
+                  <td className="px-4 py-3 text-left font-bold text-slate-800 dark:text-slate-100">{emp.emp_code}</td>
+                  <td className="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-200">{emp.full_name}</td>
                   
-                  <td className="px-6 py-3 text-center text-slate-600 dark:text-slate-300 font-bold border-l border-slate-100 dark:border-slate-800">{emp.ot_days}</td>
-                  <td className="px-6 py-3 text-center text-slate-600 dark:text-slate-300 font-bold">{emp.total_ot}</td>
-                  <td className="px-6 py-3 text-right text-orange-600 dark:text-orange-400 font-bold bg-orange-50/20">{emp.total_ot_pay.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                  <td className="px-3 py-3 border-l border-slate-100 bg-indigo-50/10">{emp.normal_work_days > 0 ? emp.normal_work_days : '-'}</td>
+                  <td className="px-3 py-3 text-indigo-600 font-bold bg-indigo-50/20">{emp.normal_wage_pay > 0 ? emp.normal_wage_pay.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-'}</td>
                   
-                  <td className="px-6 py-3 text-right text-emerald-600 dark:text-emerald-400 font-bold border-l border-slate-100 dark:border-slate-800">{emp.total_extra_add.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                  <td className="px-6 py-3 text-right text-rose-600 dark:text-rose-400 font-bold">{emp.total_extra_deduct.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                  <td className="px-3 py-3 border-l border-slate-100 bg-indigo-100/10">{emp.holiday_work_days > 0 ? emp.holiday_work_days : '-'}</td>
+                  <td className="px-3 py-3 text-indigo-600 font-bold bg-indigo-100/20">{emp.holiday_wage_pay > 0 ? emp.holiday_wage_pay.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-'}</td>
+                  
+                  <td className="px-3 py-3 border-l border-slate-100 text-slate-500">{emp.ot_1_0_hours > 0 ? emp.ot_1_0_hours.toFixed(2) : '-'}</td>
+                  <td className="px-3 py-3 font-semibold text-orange-600">{emp.ot_1_5_hours > 0 ? emp.ot_1_5_hours.toFixed(2) : '-'}</td>
+                  <td className="px-3 py-3 font-semibold text-orange-600">{emp.ot_2_0_hours > 0 ? emp.ot_2_0_hours.toFixed(2) : '-'}</td>
+                  <td className="px-3 py-3 font-semibold text-orange-600">{emp.ot_3_0_hours > 0 ? emp.ot_3_0_hours.toFixed(2) : '-'}</td>
+                  
+                  <td className="px-4 py-3 text-orange-600 font-bold border-l border-slate-100 bg-orange-50/20">{emp.total_ot_pay > 0 ? emp.total_ot_pay.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-'}</td>
+                  
+                  <td className="px-4 py-3 text-emerald-600 font-bold border-l border-slate-100">{emp.total_extra_add > 0 ? emp.total_extra_add.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-'}</td>
+                  <td className="px-4 py-3 text-rose-600 font-bold border-l border-slate-100">{emp.total_extra_deduct > 0 ? emp.total_extra_deduct.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-'}</td>
 
-                  <td className="px-6 py-3 text-right text-emerald-700 dark:text-emerald-400 font-black border-l border-slate-100 dark:border-slate-800 bg-emerald-50/20 text-lg">
+                  <td className="px-6 py-3 text-right text-emerald-700 font-black border-l border-slate-100 bg-emerald-50/20 text-base">
                     {emp.net_pay.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
                   </td>
                 </tr>
