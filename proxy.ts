@@ -72,10 +72,11 @@ export async function proxy(request: NextRequest) {
 
   // Paths that are considered public or auth-related
   const isAuthPage = pathname.startsWith('/login') || pathname === '/';
+  const isPublic = pathname.startsWith('/live') || pathname === '/api/presentation';
 
   if (!sessionCookie) {
     // If not logged in and trying to access a protected route
-    if (!isAuthPage && !pathname.startsWith('/api')) {
+    if (!isAuthPage && !pathname.startsWith('/api') && !isPublic) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
     // If accessing root, redirect to login
@@ -96,25 +97,6 @@ export async function proxy(request: NextRequest) {
 
     // If logged in and trying to access login page or root, redirect to dashboard
     if (isAuthPage) {
-      if (session.role === 'admin') {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      } else if (session.role === 'employee') {
-        return NextResponse.redirect(new URL('/my-profile', request.url));
-      }
-    }
-
-    // Protect Admin routes
-    const adminRoutes = ['/dashboard', '/employees', '/attendance', '/departments', '/leaves', '/ot-reports', '/reports', '/settings'];
-    const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
-    
-    if (isAdminRoute && session.role !== 'admin') {
-      // Employees trying to access admin routes
-      return NextResponse.redirect(new URL('/my-profile', request.url));
-    }
-
-    // Protect Employee routes
-    if (pathname.startsWith('/my-profile') && session.role !== 'employee') {
-      // Admins trying to access employee routes
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 

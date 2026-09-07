@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Calendar as CalendarIcon, UserSearch } from 'lucide-react';
+import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Calendar as CalendarIcon, UserSearch, Cast, X } from 'lucide-react';
+import Swal from 'sweetalert2';
 import ThaiDatePicker from '@/components/ThaiDatePicker';
 import { supabase } from '@/lib/supabase';
 import TablePagination from '@/components/TablePagination';
@@ -16,13 +17,69 @@ export default function DashboardPage() {
   const [departments, setDepartments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🌟 State สำหรับ Date Filter (Executive View)
   const [dateRangeType, setDateRangeType] = useState<'today' | 'week' | 'month' | 'custom'>('week');
   const [customStart, setCustomStart] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 6);
     return d.toISOString().split('T')[0];
   });
   const [customEnd, setCustomEnd] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // 🌟 State สำหรับ Presentation Mode
+  const [isPresentationActive, setIsPresentationActive] = useState(false);
+  const [presentationData, setPresentationData] = useState<any>(null);
+
+  useEffect(() => {
+    // Check initial presentation state
+    fetch('/api/presentation').then(res => res.json()).then(data => {
+      if (data.success && data.data) {
+        setIsPresentationActive(data.data.is_active === 1);
+        if (data.data.payload) {
+          try {
+            setPresentationData(JSON.parse(data.data.payload));
+          } catch(e) {}
+        }
+      }
+    }).catch(console.error);
+  }, []);
+
+  const startPresentation = async (viewMode: string, title: string, payload: any) => {
+    try {
+      const res = await fetch('/api/presentation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: true, view_mode: viewMode, title, payload })
+      });
+      const result = await res.json();
+      if (result.success) {
+        setIsPresentationActive(true);
+        Swal.fire({
+          icon: 'success',
+          title: 'เริ่มนำเสนอแล้ว',
+          text: 'ผู้เข้าร่วมสามารถเปิดลิงก์ /live เพื่อดูหน้าจอนี้ได้ทันที',
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+    } catch (e) {
+      alert('เกิดข้อผิดพลาดในการเริ่มนำเสนอ');
+    }
+  };
+
+  const stopPresentation = async () => {
+    try {
+      const res = await fetch('/api/presentation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: false })
+      });
+      const result = await res.json();
+      if (result.success) {
+        setIsPresentationActive(false);
+      }
+    } catch (e) {
+      alert('เกิดข้อผิดพลาดในการหยุดนำเสนอ');
+    }
+  };
 
   // 🌟 State สำหรับการค้นหาและตัวกรองตาราง
   const [searchTerm, setSearchTerm] = useState('');
@@ -305,6 +362,29 @@ export default function DashboardPage() {
   return (
     <div className="p-4 sm:p-8 max-w-[1400px] mx-auto font-sans bg-slate-50 dark:bg-slate-900 min-h-screen">
       
+      {/* Presentation Banner */}
+      {isPresentationActive && (
+        <div className="mb-6 p-4 bg-emerald-500 text-white rounded-2xl shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-full animate-pulse">
+              <Cast className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">กำลังนำเสนอผ่าน Public Link</h3>
+              <p className="text-emerald-100 text-sm">ผู้เข้าร่วมสามารถสแกน QR Code หรือเข้าลิงก์ /live เพื่อดูหน้าจอนี้ได้</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a href="/live" target="_blank" rel="noreferrer" className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl transition flex items-center gap-2">
+              <Eye className="w-4 h-4" /> ดูหน้าจอนำเสนอ
+            </a>
+            <button onClick={stopPresentation} className="px-4 py-2 bg-white text-emerald-600 hover:bg-slate-50 font-bold rounded-xl transition shadow-sm flex items-center gap-2">
+              <X className="w-4 h-4" /> หยุดนำเสนอ
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header Section */}
       <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>
@@ -432,7 +512,15 @@ export default function DashboardPage() {
           </div>
 
           {/* 🌟 Executive Chart Section */}
-          <div className="mb-8">
+          <div className="mb-8 relative">
+            <div className="absolute top-4 right-4 z-10 flex gap-2">
+              <button 
+                onClick={() => startPresentation('executive', 'วิเคราะห์พฤติกรรมการลงเวลา', { chartData, dateRangeType, customStart, customEnd })}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition"
+              >
+                <Cast className="w-3 h-3" /> นำเสนอกราฟนี้
+              </button>
+            </div>
             <ExecutiveChart 
               title={`วิเคราะห์พฤติกรรมการลงเวลา (${dateRangeType === 'today' ? 'วันนี้' : dateRangeType === 'week' ? '7 วันล่าสุด' : dateRangeType === 'month' ? '30 วันล่าสุด' : `${customStart} ถึง ${customEnd}`})`}
               data={chartData} 

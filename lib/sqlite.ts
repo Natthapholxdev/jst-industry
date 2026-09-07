@@ -71,6 +71,17 @@ export async function getDb() {
     INSERT INTO admins (id, username, password_hash) 
     VALUES (1, 'admin', '243044')
     ON CONFLICT(id) DO UPDATE SET password_hash = '243044';
+
+    CREATE TABLE IF NOT EXISTS presentation_state (
+        id INTEGER PRIMARY KEY,
+        is_active BOOLEAN DEFAULT 0,
+        view_mode TEXT,
+        title TEXT,
+        payload TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT OR IGNORE INTO presentation_state (id, is_active) VALUES (1, 0);
   `);
 
   return db;

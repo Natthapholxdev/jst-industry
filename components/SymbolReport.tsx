@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame } from 'lucide-react';
+import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Cast } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { supabase } from '@/lib/supabase';
 import * as xlsx from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -280,6 +281,29 @@ export default function SymbolReport() {
               ${!reportData ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md'}`}
           >
             📊 ดาวน์โหลด Excel
+          </button>
+          
+          <button 
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/presentation', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ is_active: true, view_mode: 'symbol', title: 'รายงานแบบสัญลักษณ์', payload: { reportData, startDate, endDate } })
+                });
+                const result = await res.json();
+                if (result.success) {
+                  Swal.fire({ icon: 'success', title: 'นำเสนอสำเร็จ', text: 'ข้อมูลกำลังแสดงที่หน้า /live', timer: 2000, showConfirmButton: false });
+                }
+              } catch (e) {
+                alert('เกิดข้อผิดพลาดในการนำเสนอ');
+              }
+            }}
+            disabled={!reportData}
+            className={`flex-1 md:flex-none px-6 py-2.5 font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-2
+              ${!reportData ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'}`}
+          >
+            <Cast className="w-5 h-5" /> นำเสนอขึ้นจอ
           </button>
         </div>
       </div>

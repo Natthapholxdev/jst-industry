@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { employee_id, leave_type, start_date, end_date, reason } = body;
+    const { employee_id, leave_type, start_date, end_date, reason, status } = body;
 
     // บังคับให้พนักงานสร้างใบลาได้เฉพาะของตัวเองเท่านั้น
     if (user.role !== 'admin' && user.id.toString() !== employee_id.toString()) {
@@ -64,8 +64,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'วันที่เริ่มต้นต้องไม่มากกว่าวันที่สิ้นสุด' }, { status: 400 });
     }
 
+    // ถ้าแอดมินเป็นคนคีย์ข้อมูลเอง ให้เป็น Approved ไปเลย หรือตามที่ส่งมา
+    const finalStatus = user.role === 'admin' ? (status || 'Approved') : 'Pending';
+
     const { data, error } = await supabase.from('leave_requests').insert([
-      { employee_id, leave_type, start_date, end_date, reason, status: 'Pending' }
+      { employee_id, leave_type, start_date, end_date, reason, status: finalStatus }
     ]).select().single();
 
     if (error) throw error;

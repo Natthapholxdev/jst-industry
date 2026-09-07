@@ -1,12 +1,25 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { LayoutDashboard, CheckCircle, XCircle, Clock, Plus, X } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminLeavesPage() {
   const [leaves, setLeaves] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    employee_id: '',
+    leave_type: 'ลาป่วย',
+    start_date: '',
+    end_date: '',
+    reason: ''
+  });
 
   const fetchLeaves = async () => {
     setIsLoading(true);
@@ -23,8 +36,14 @@ export default function AdminLeavesPage() {
     }
   };
 
+  const fetchEmployees = async () => {
+    const { data } = await supabase.from('employees').select('id, emp_code, full_name').eq('status', 'Active').order('emp_code');
+    if (data) setEmployees(data);
+  };
+
   useEffect(() => {
     fetchLeaves();
+    fetchEmployees();
   }, []);
 
   const updateStatus = async (id: number, status: string) => {
@@ -39,16 +58,51 @@ export default function AdminLeavesPage() {
     }
   };
 
+  const handleSubmitLeave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.employee_id || !formData.start_date || !formData.end_date) {
+      return alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/leaves', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // แอดมินบันทึกเอง ให้อนุมัติอัตโนมัติเลย
+        body: JSON.stringify({ ...formData, status: 'Approved' }) 
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      Swal.fire({ icon: 'success', title: 'บันทึกการลาสำเร็จ', timer: 1500, showConfirmButton: false });
+      setShowAddModal(false);
+      setFormData({ employee_id: '', leave_type: 'ลาป่วย', start_date: '', end_date: '', reason: '' });
+      fetchLeaves();
+    } catch (error: any) {
+      Swal.fire({ icon: 'error', title: 'ผิดพลาด', text: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto font-sans">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white flex items-center gap-3">
             <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 dark:text-slate-300 transition">&larr;</Link>
             ระบบจัดการการลางาน
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 ml-10 font-medium">อนุมัติหรือปฏิเสธคำขอการลางานของพนักงาน</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 ml-10 font-medium">บันทึก อนุมัติ หรือปฏิเสธคำขอการลางานของพนักงาน</p>
         </div>
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm"
+        >
+          <Plus className="w-5 h-5" /> บันทึกการลาใหม่
+        </button>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -104,6 +158,93 @@ export default function AdminLeavesPage() {
           )}
         </div>
       </div>
+
+      {/* 🌟 Add Leave Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+              <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-indigo-500" /> บันทึกการลางาน
+              </h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600 transition"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <form onSubmit={handleSubmitLeave} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">พนักงาน</label>
+                <select 
+                  required
+                  value={formData.employee_id}
+                  onChange={(e) => setFormData({...formData, employee_id: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                >
+                  <option value="">-- เลือกพนักงาน --</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>[{emp.emp_code}] {emp.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">ประเภทการลา</label>
+                <select 
+                  value={formData.leave_type}
+                  onChange={(e) => setFormData({...formData, leave_type: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                >
+                  <option value="ลาป่วย">ลาป่วย</option>
+                  <option value="ลากิจ">ลากิจ</option>
+                  <option value="ลาพักร้อน">ลาพักร้อน</option>
+                  <option value="ลาคลอด">ลาคลอด</option>
+                  <option value="ขาดงาน">ขาดงาน (ไม่มีเหตุผล)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">วันเริ่มต้น</label>
+                  <input 
+                    type="date" required
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({...formData, start_date: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">วันสิ้นสุด</label>
+                  <input 
+                    type="date" required
+                    value={formData.end_date}
+                    onChange={(e) => setFormData({...formData, end_date: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">เหตุผล (ถ้ามี)</label>
+                <textarea 
+                  rows={2}
+                  value={formData.reason}
+                  onChange={(e) => setFormData({...formData, reason: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                  placeholder="ระบุเหตุผลการลา..."
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition">
+                  ยกเลิก
+                </button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm disabled:opacity-50">
+                  {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล (อนุมัติทันที)'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
