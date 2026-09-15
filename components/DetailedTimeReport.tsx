@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame } from 'lucide-react';
+import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Cast } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import * as xlsx from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -98,7 +98,9 @@ export default function DetailedTimeReport() {
     if (log.time_in_2 || log.time_out_2) {
       lines.push(`${log.time_in_2 || '?'} - ${log.time_out_2 || '?'}`);
     }
-    if (log.time_in_3 || log.time_out_3) {
+    if (log.time_in_3 === 'OT') {
+      lines.push(`OT ${log.time_out_3 || '0'} ชม.`);
+    } else if (log.time_in_3 || log.time_out_3) {
       lines.push(`(OT) ${log.time_in_3 || '?'} - ${log.time_out_3 || '?'}`);
     }
 
@@ -120,6 +122,10 @@ export default function DetailedTimeReport() {
     const { employees, dates, logsMap } = reportData;
 
     const excelData = employees.map((emp, index) => {
+      let totalWorkDays = 0;
+      let totalLeaveDays = 0;
+      let totalOT = 0;
+
       const row: any = {
         'ลำดับ': index + 1,
         'รหัส': emp.emp_code,
@@ -132,8 +138,21 @@ export default function DetailedTimeReport() {
         const key = `${emp.id}_${date}`;
         const log = logsMap[key];
         const lines = getDetailedLines(log);
+
+        if (log) {
+          const hasTimeIn = log.time_in_1 || log.time_in_2 || log.time_in_3;
+          if (hasTimeIn) totalWorkDays += 1;
+          else if (log.remark) totalLeaveDays += 1;
+          if (log.time_in_3 === 'OT') totalOT += Number(log.time_out_3) || 0;
+          else if (log.daily_ot_hours) totalOT += Number(log.daily_ot_hours);
+        }
+
         row[date] = lines.join('\n');
       });
+
+      row['ทำงาน (วัน)'] = totalWorkDays;
+      row['ลา (วัน)'] = totalLeaveDays;
+      row['รวม OT (ชม.)'] = totalOT > 0 ? totalOT.toFixed(1) : '-';
 
       return row;
     });
@@ -238,6 +257,30 @@ export default function DetailedTimeReport() {
           >
             📊 ดาวน์โหลด Excel
           </button>
+          
+          <button 
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/presentation', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ is_active: true, view_mode: 'detailed', title: 'รายงานแบบเวลาละเอียด', payload: { reportData, startDate, endDate } })
+                });
+                const result = await res.json();
+                if (result.success) {
+                  // SweetAlert2 is not imported here, use alert or import it
+                  alert('นำเสนอขึ้นจอสำเร็จ! ข้อมูลกำลังแสดงที่หน้า /live');
+                }
+              } catch (e) {
+                alert('เกิดข้อผิดพลาดในการนำเสนอ');
+              }
+            }}
+            disabled={!reportData}
+            className={`flex-1 md:flex-none px-6 py-2.5 font-bold rounded-[980px] transition shadow-[var(--shadow-apple-soft)] flex items-center justify-center gap-2
+              ${!reportData ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed' : 'bg-apple-blue hover:bg-blue-600 text-white shadow-md'}`}
+          >
+            <Cast className="w-5 h-5" /> นำเสนอขึ้นจอ
+          </button>
         </div>
       </div>
 
@@ -268,11 +311,19 @@ export default function DetailedTimeReport() {
                       </th>
                     );
                   })}
+                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20">ทำงาน<br/>(วัน)</th>
+                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20">ลา<br/>(วัน)</th>
+                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20">รวม OT<br/>(ชม.)</th>
                 </tr>
               </thead>
               
               <tbody className="divide-y divide-slate-100 bg-white dark:bg-slate-800">
-                {reportData.employees.map((emp, index) => (
+                {reportData.employees.map((emp, index) => {
+                  let totalWorkDays = 0;
+                  let totalLeaveDays = 0;
+                  let totalOT = 0;
+                  
+                  return (
                   <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-900 transition">
                     <td className="w-[50px] min-w-[50px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 sticky left-0 z-30">{index + 1}</td>
                     <td className="w-[80px] min-w-[80px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 sticky left-[50px] z-30">{emp.emp_code}</td>
@@ -283,6 +334,14 @@ export default function DetailedTimeReport() {
                       const log = reportData.logsMap[key];
                       const lines = getDetailedLines(log);
                       
+                      if (log) {
+                        const hasTimeIn = log.time_in_1 || log.time_in_2 || log.time_in_3;
+                        if (hasTimeIn) totalWorkDays += 1;
+                        else if (log.remark) totalLeaveDays += 1;
+                        if (log.time_in_3 === 'OT') totalOT += Number(log.time_out_3) || 0;
+                        else if (log.daily_ot_hours) totalOT += Number(log.daily_ot_hours);
+                      }
+
                       let textClass = 'text-slate-700 dark:text-slate-300 font-medium';
                       let bgClass = '';
                       
@@ -305,8 +364,12 @@ export default function DetailedTimeReport() {
                         </td>
                       );
                     })}
+                    
+                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/10">{totalWorkDays}</td>
+                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-amber-600 bg-amber-50/50 dark:bg-amber-900/10">{totalLeaveDays}</td>
+                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/10">{totalOT > 0 ? totalOT.toFixed(1) : '-'}</td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

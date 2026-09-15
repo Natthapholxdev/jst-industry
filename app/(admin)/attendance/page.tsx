@@ -321,8 +321,6 @@ export default function AttendancePage() {
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">ตัวคูณ OT</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-emerald-700 bg-emerald-50/50 border-l border-emerald-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">เงินเพิ่ม (฿)</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-rose-700 bg-rose-50/50 border-l border-rose-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">หักเงิน (฿)</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-100/50 border-l border-indigo-200">เข้าพิเศษ</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-100/50">ออกพิเศษ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white dark:bg-slate-800 print:divide-slate-300">
@@ -371,15 +369,10 @@ export default function AttendancePage() {
                         </td>
                       ))}
 
-                      {/* วนลูปเวลา OT */}
                       {["time_in_3", "time_out_3"].map((field, idx) => (
-                        <td key={field} className={`px-1 py-2 print:px-0 print:py-1 text-center bg-orange-50/20 print:bg-transparent ${idx === 0 ? "border-l border-orange-100" : ""}`}>
+                        <td key={field} className={`px-1 py-2 print:px-0 print:py-1 text-center bg-orange-50/20 print:bg-transparent ${idx === 0 ? 'border-l border-orange-100' : ''}`}>
                           <div className="print:hidden">
-                            <ThaiTimeInput
-                              value={emp[field]}
-                              onChange={(val) => handleInputChange(emp.id, field, val)}
-                              theme="orange"
-                            />
+                            <ThaiTimeInput value={emp[field]} onChange={(val) => handleInputChange(emp.id, field, val)} theme="orange" />
                           </div>
                           <div className="hidden print:block text-[10px]">{emp[field] || "-"}</div>
                         </td>
@@ -446,19 +439,6 @@ export default function AttendancePage() {
                         <div className="hidden print:block text-[10px]">{emp.extra_deduct || "-"}</div>
                       </td>
 
-                      {/* วนลูปเวลาพิเศษ (4) ย้ายมาท้ายสุด */}
-                      {["time_in_4", "time_out_4"].map((field, idx) => (
-                        <td key={field} className={`px-1 py-2 print:px-0 print:py-1 text-center bg-indigo-50/20 print:bg-transparent ${idx === 0 ? "border-l border-indigo-100" : ""}`}>
-                          <div className="print:hidden">
-                            <ThaiTimeInput
-                              value={emp[field]}
-                              onChange={(val) => handleInputChange(emp.id, field, val)}
-                              theme="indigo"
-                            />
-                          </div>
-                          <div className="hidden print:block text-[10px]">{emp[field] || "-"}</div>
-                        </td>
-                      ))}
                     </tr>
                   );
                 })}

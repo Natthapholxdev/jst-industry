@@ -87,8 +87,8 @@ export default function SymbolReport() {
     }
   };
 
-  const getStatusSymbol = (log: any, emp: any, dataMap: any) => {
-    if (!log) return 'x';
+  const getStatusData = (log: any, emp: any, dataMap: any) => {
+    if (!log) return { isAbsent: true, text: 'x', isRemark: false, timeText: '', isLate: false, isMissingPunch: false, dailyOT: 0, isDoublePay: false, remark: '' };
 
     let isPresent = false;
     const in1 = timeToHours(log.time_in_1);
@@ -103,60 +103,59 @@ export default function SymbolReport() {
     }
 
     if (!isPresent) {
-      if (log.remark && log.remark.trim() !== '') return log.remark;
-      return 'x';
+      if (log.remark && log.remark.trim() !== '') return { isAbsent: true, text: log.remark, isRemark: true, timeText: '', isLate: false, isMissingPunch: false, dailyOT: 0, isDoublePay: false, remark: log.remark };
+      return { isAbsent: true, text: '-', isRemark: false, timeText: '', isLate: false, isMissingPunch: false, dailyOT: 0, isDoublePay: false, remark: '' };
     }
 
     const payMulti = log.pay_multiplier || 1.0;
-    if (payMulti >= 2.0) {
-      return '//';
-    }
+    const isDoublePay = payMulti >= 2.0;
 
-    let dailyOT = 0;
     const empShift = dataMap.shifts.find((s: any) => s.id === emp.shift_id) || { ot_start_time: '18:30', time_in: '08:00' };
     const otSettingStart = timeToHours(dataMap.settings?.ot_in_end || empShift.ot_start_time);
     
     let isMissingPunch = false;
     const pairs = [[in1, out1], [in2, out2], [in3, out3]];
+    let dailyOT = 0;
+    if (log.time_in_3 === 'OT') {
+      dailyOT += Number(log.time_out_3) || 0;
+    }
     pairs.forEach(([tIn, tOut]) => {
-      if (tIn > 0 && tOut === 0) {
-        isMissingPunch = true;
-      }
-      if (tIn > 0 && tOut > 0 && tOut > otSettingStart) {
+      if (tIn > 0 && tOut === 0) isMissingPunch = true;
+      if (tIn > 0 && tOut > 0 && tOut > otSettingStart && log.time_in_3 !== 'OT') {
         const actualOtStart = Math.max(tIn, otSettingStart);
-        if (tOut > actualOtStart) {
-          dailyOT += (tOut - actualOtStart);
-        }
+        if (tOut > actualOtStart) dailyOT += (tOut - actualOtStart);
       }
     });
 
-    let symbol = '/';
-
     const shiftStart = timeToHours(empShift.time_in || '08:00');
-    if (in1 > 0 && in1 > shiftStart) {
-      symbol = 'ส';
-    }
+    const isLate = in1 > 0 && in1 > shiftStart;
     
-    if (isMissingPunch) {
-      symbol = symbol === '/' ? '?' : `${symbol}?`;
-    }
+    // Determine Time Text
+    let timeText = log.time_in_1 && log.time_in_1 !== '-' ? log.time_in_1 : (log.time_in_2 && log.time_in_2 !== '-' ? log.time_in_2 : '?');
 
-    if (log.remark === 'นอกเวลา') {
-      symbol = 'น';
-    } else if (log.remark && log.remark.trim() !== '' && symbol === '/') {
-      symbol = log.remark;
-    }
+    return {
+      isAbsent: false,
+      text: timeText,
+      timeText,
+      isLate,
+      isMissingPunch,
+      dailyOT,
+      isDoublePay,
+      remark: log.remark,
+      isRemark: false
+    };
+  };
 
-    if (dailyOT > 0) {
-      const otDisplay = dailyOT % 1 === 0 ? dailyOT.toString() : dailyOT.toFixed(1);
-      if (symbol === '/') {
-        symbol = `/${otDisplay}`;
-      } else {
-        symbol = `${symbol}/${otDisplay}`;
-      }
-    }
-
-    return symbol;
+  const getExportSymbol = (log: any, emp: any, dataMap: any) => {
+    const data = getStatusData(log, emp, dataMap);
+    if (data.isAbsent) return data.text;
+    
+    let result = data.timeText;
+    if (data.isDoublePay) result += ' (2แรง)';
+    if (data.dailyOT > 0) result += ` (OT ${data.dailyOT.toFixed(1)})`;
+    if (data.isMissingPunch) result += ' (?)';
+    if (data.remark && data.remark !== 'นอกเวลา') result += ` [${data.remark}]`;
+    return result;
   };
 
   const exportToExcel = () => {
@@ -164,7 +163,11 @@ export default function SymbolReport() {
 
     const { employees, dates, logsMap } = reportData;
 
-    const excelData = employees.map((emp, index) => {
+      const excelData = employees.map((emp, index) => {
+      let totalWorkDays = 0;
+      let totalLeaveDays = 0;
+      let totalOT = 0;
+
       const row: any = {
         'ลำดับ': index + 1,
         'รหัส': emp.emp_code,
@@ -176,8 +179,20 @@ export default function SymbolReport() {
       dates.forEach(date => {
         const key = `${emp.id}_${date}`;
         const log = logsMap[key];
-        row[date] = getStatusSymbol(log, emp, reportData);
+        
+        // Use getStatusData for summary calculation
+        const data = getStatusData(log, emp, reportData);
+        if (!data.isAbsent && data.timeText) totalWorkDays += 1;
+        if (data.isAbsent && data.isRemark) totalLeaveDays += 1;
+        if (data.dailyOT > 0) totalOT += data.dailyOT;
+
+        row[date] = getExportSymbol(log, emp, reportData);
       });
+
+      // Add summary columns to the end of the row
+      row['ทำงาน (วัน)'] = totalWorkDays;
+      row['ลา (วัน)'] = totalLeaveDays;
+      row['รวม OT (ชม.)'] = totalOT > 0 ? totalOT.toFixed(1) : '-';
 
       return row;
     });
@@ -219,9 +234,9 @@ export default function SymbolReport() {
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            รายงานแบบสัญลักษณ์
+            รายงานเวลาทำงาน
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">สรุปข้อมูลตารางลงเวลาแบบสัญลักษณ์ (/, //, ส, น, x, /OT)</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">สรุปข้อมูลตารางลงเวลา (เวลาเข้า, OT, 2 แรง)</p>
         </div>
       </div>
 
@@ -312,14 +327,6 @@ export default function SymbolReport() {
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center flex-wrap gap-2">
             <h2 className="font-bold text-slate-700 dark:text-slate-200">แสดงผลตั้งแต่วันที่ {startDate} ถึง {endDate} ({reportData.dates.length} วัน)</h2>
-            <div className="flex gap-4 text-xs font-bold text-slate-500">
-              <span className="flex items-center gap-1"><span className="text-emerald-500 font-bold">/</span> เข้างานปกติ</span>
-              <span className="flex items-center gap-1"><span className="text-indigo-500 font-bold">/3</span> ทำ OT</span>
-              <span className="flex items-center gap-1"><span className="text-blue-500 font-bold">//</span> ทำงานวันหยุด (2แรง)</span>
-              <span className="flex items-center gap-1"><span className="text-amber-500 font-bold">ส</span> มาสาย</span>
-              <span className="flex items-center gap-1"><span className="text-fuchsia-500 font-bold">?</span> ลืมสแกน/สแกนไม่ครบ</span>
-              <span className="flex items-center gap-1"><span className="text-rose-500 font-bold">x</span> ขาด/หยุด</span>
-            </div>
           </div>
           
           <div className="overflow-x-auto max-h-[70vh] border-t border-slate-200 dark:border-slate-700">
@@ -338,53 +345,97 @@ export default function SymbolReport() {
                       </th>
                     );
                   })}
+                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20">ทำงาน<br/>(วัน)</th>
+                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20">ลา<br/>(วัน)</th>
+                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20">รวม OT<br/>(ชม.)</th>
                 </tr>
               </thead>
               
               <tbody className="divide-y divide-slate-100 bg-white dark:bg-slate-800">
-                {reportData.employees.map((emp, index) => (
+                {reportData.employees.map((emp, index) => {
+                  let totalWorkDays = 0;
+                  let totalLeaveDays = 0;
+                  let totalOT = 0;
+                  
+                  return (
                   <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-900 transition">
                     <td className="w-[50px] min-w-[50px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 sticky left-0 z-30">{index + 1}</td>
                     <td className="w-[80px] min-w-[80px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 sticky left-[50px] z-30">{emp.emp_code}</td>
-                    <td className="w-[180px] min-w-[180px] px-3 py-2.5 border border-slate-200 dark:border-slate-700 font-medium text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 sticky left-[130px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] truncate">{emp.full_name}</td>
+                    <td className="w-[180px] min-w-[180px] px-3 py-2.5 border border-slate-200 dark:border-slate-700 font-medium text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 sticky left-[130px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] truncate">
+                      <Link href={`/attendance-person?empId=${emp.id}`} className="hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">
+                        {emp.full_name}
+                      </Link>
+                    </td>
                     
                     {reportData.dates.map((date) => {
                       const key = `${emp.id}_${date}`;
                       const log = reportData.logsMap[key];
-                      const statusDisplay = getStatusSymbol(log, emp, reportData);
+                      const data = getStatusData(log, emp, reportData);
                       
-                      let textClass = 'text-slate-700 dark:text-slate-300 font-semibold';
+                      // Calculate summaries
+                      if (!data.isAbsent && data.timeText) {
+                        totalWorkDays += 1;
+                      }
+                      if (data.isAbsent && data.isRemark) {
+                        totalLeaveDays += 1;
+                      }
+                      if (data.dailyOT > 0) {
+                        totalOT += data.dailyOT;
+                      }
+
                       let bgClass = '';
-                      
-                      if (statusDisplay === 'x') {
-                        textClass = 'text-rose-500 dark:text-rose-400 font-bold';
-                        bgClass = 'bg-rose-50/50 dark:bg-rose-900/20';
-                      } else if (statusDisplay === '//') {
-                        textClass = 'text-blue-600 dark:text-blue-400 font-extrabold';
-                        bgClass = 'bg-blue-50/50 dark:bg-blue-900/20';
-                      } else if (statusDisplay.includes('?')) {
-                        textClass = 'text-fuchsia-600 dark:text-fuchsia-400 font-bold';
+                      if (data.isAbsent) {
+                        bgClass = data.isRemark ? 'bg-amber-50/50 dark:bg-amber-900/20' : 'bg-rose-50/50 dark:bg-rose-900/20';
+                      } else if (data.isMissingPunch) {
                         bgClass = 'bg-fuchsia-50/50 dark:bg-fuchsia-900/20';
-                      } else if (statusDisplay.includes('ส')) {
-                        textClass = 'text-amber-600 dark:text-amber-400 font-bold';
-                        bgClass = 'bg-amber-50/50 dark:bg-amber-900/20';
-                      } else if (statusDisplay.includes('/')) {
-                        textClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
-                        bgClass = 'bg-emerald-50/30 dark:bg-emerald-900/10';
-                        if (statusDisplay !== '/') {
-                           textClass = 'text-indigo-600 dark:text-indigo-400 font-extrabold';
-                           bgClass = 'bg-indigo-50/50 dark:bg-indigo-900/20';
-                        }
+                      } else if (data.isLate) {
+                        bgClass = 'bg-rose-50/30 dark:bg-rose-900/10';
+                      } else {
+                        bgClass = 'bg-emerald-50/20 dark:bg-emerald-900/10';
                       }
 
                       return (
-                        <td key={date} className={`w-[45px] min-w-[45px] px-1 py-3 border border-slate-200 dark:border-slate-700 text-center text-sm ${textClass} ${bgClass}`}>
-                          {statusDisplay}
+                        <td key={date} className={`w-[60px] min-w-[60px] px-1 py-1 border border-slate-200 dark:border-slate-700 text-center text-xs leading-tight ${bgClass}`}>
+                          {data.isAbsent ? (
+                            <div className={`font-bold ${data.isRemark ? 'text-amber-600 dark:text-amber-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                              {data.text}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center gap-0.5">
+                              <div className={`font-bold ${data.isLate ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                {data.timeText}
+                              </div>
+                              {data.dailyOT > 0 && (
+                                <div className="text-[10px] font-bold text-orange-600 dark:text-orange-400 whitespace-nowrap">
+                                  OT {data.dailyOT.toFixed(1)} ชม.
+                                </div>
+                              )}
+                              {data.isDoublePay && (
+                                <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                                  2 แรง
+                                </div>
+                              )}
+                              {data.isMissingPunch && (
+                                <div className="text-[10px] font-bold text-fuchsia-600 dark:text-fuchsia-400">
+                                  ?
+                                </div>
+                              )}
+                              {data.remark && data.remark !== 'นอกเวลา' && (
+                                <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 truncate w-full" title={data.remark}>
+                                  [{data.remark}]
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </td>
                       );
                     })}
+                    
+                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/10">{totalWorkDays}</td>
+                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-amber-600 bg-amber-50/50 dark:bg-amber-900/10">{totalLeaveDays}</td>
+                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/10">{totalOT > 0 ? totalOT.toFixed(1) : '-'}</td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

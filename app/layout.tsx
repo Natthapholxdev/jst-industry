@@ -1,13 +1,6 @@
 import type { Metadata } from "next";
-import { Kanit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
-
-const kanit = Kanit({
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
-  subsets: ["thai", "latin"],
-  variable: "--font-kanit",
-});
 
 export const metadata: Metadata = {
   title: "TimeManage HR System",
@@ -21,9 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" suppressHydrationWarning>
-      <body
-        className={`${kanit.variable} font-sans antialiased min-h-full flex flex-col`}
-      >
+      <body className={`antialiased bg-[var(--apple-surface-base)] text-[var(--apple-text-primary)] selection:bg-apple-blue selection:text-white min-h-full flex flex-col font-sans`}>
         <ThemeProvider>
           {children}
         </ThemeProvider>

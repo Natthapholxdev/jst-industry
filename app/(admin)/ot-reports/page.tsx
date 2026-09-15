@@ -68,7 +68,19 @@ export default function OTReportsPage() {
       const { data: shifts } = await supabase.from('shifts').select('*');
       const shiftsMap = new Map((shifts || []).map(s => [s.id, s]));
 
-      const summary = employees.map(emp => {
+        const { data: holidaysData } = await supabase.from('holidays').select('*').gte('holiday_date', startDate).lte('holiday_date', endDate);
+        const holidays = holidaysData || [];
+
+        // Generate date array
+        const dateArray: string[] = [];
+        let currentDate = new Date(startDate);
+        const stopDate = new Date(endDate);
+        while (currentDate <= stopDate) {
+          dateArray.push(currentDate.toISOString().split("T")[0]);
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        const summary = employees.map(emp => {
         const empShift = shiftsMap.get(emp.shift_id);
         const otSettingStart = timeToHours(empShift?.ot_start_time || otSetting);
         const empLogs = logs?.filter(l => l.employee_id === emp.id) || [];
@@ -87,62 +99,83 @@ export default function OTReportsPage() {
         let totalExtraAdd = 0;
         let totalExtraDeduct = 0;
 
-        empLogs.forEach(log => {
-          let payMult = Number(log.pay_multiplier) || 1.0;
-          if (log.time_in_1 && log.time_in_1 !== '-') {
-            if (payMult > 1.0) {
-              holiday_work_days++;
-              holiday_wage_pay += (emp.hourly_rate || 0) * payMult;
-            } else {
+        dateArray.forEach(dateStr => {
+          const log = empLogs.find(l => l.log_date === dateStr);
+          const isHoliday = holidays.some(h => h.holiday_date === dateStr);
+
+          if (log) {
+            let payMult = Number(log.pay_multiplier) || 1.0;
+            const hasScannedIn = log.time_in_1 && log.time_in_1 !== '-';
+            
+            if (hasScannedIn) {
+              if (payMult > 1.0) {
+                holiday_work_days++;
+                holiday_wage_pay += (emp.hourly_rate || 0) * payMult;
+              } else {
+                normal_work_days++;
+                normal_wage_pay += (emp.hourly_rate || 0);
+              }
+            } else if (isHoliday) {
+              // They took a leave or didn't scan on a holiday, but we still pay them 1x
               normal_work_days++;
               normal_wage_pay += (emp.hourly_rate || 0);
             }
-          }
-          
-          totalExtraAdd += Number(log.extra_add || 0);
-          totalExtraDeduct += Number(log.extra_deduct || 0);
+            
+            totalExtraAdd += Number(log.extra_add || 0);
+            totalExtraDeduct += Number(log.extra_deduct || 0);
 
-          const in1 = timeToHours(log.time_in_1);
-          const out1 = timeToHours(log.time_out_1);
-          const in2 = timeToHours(log.time_in_2);
-          const out2 = timeToHours(log.time_out_2);
-          const in3 = timeToHours(log.time_in_3);
-          const out3 = timeToHours(log.time_out_3);
-          const in4 = timeToHours(log.time_in_4);
-          const out4 = timeToHours(log.time_out_4);
+            const in1 = timeToHours(log.time_in_1);
+            const out1 = timeToHours(log.time_out_1);
+            const in2 = timeToHours(log.time_in_2);
+            const out2 = timeToHours(log.time_out_2);
+            const in4 = timeToHours(log.time_in_4);
+            const out4 = timeToHours(log.time_out_4);
 
-          let dailyOT = 0;
-          const pairs = [[in1, out1], [in2, out2], [in3, out3], [in4, out4]];
-          
-          pairs.forEach(([tIn, tOut]) => {
-            if (tIn > 0 && tOut > 0) {
-              if (tOut > otSettingStart) {
-                const actualOtStart = Math.max(tIn, otSettingStart);
-                if (tOut > actualOtStart) {
-                  dailyOT += (tOut - actualOtStart);
+            let dailyOT = 0;
+            
+            // Check manual OT (hourly)
+            if (log.time_in_3 === 'OT') {
+              dailyOT += Number(log.time_out_3) || 0;
+            } else {
+              const in3 = timeToHours(log.time_in_3);
+              const out3 = timeToHours(log.time_out_3);
+              
+              const pairs = [[in1, out1], [in2, out2], [in3, out3], [in4, out4]];
+              pairs.forEach(([tIn, tOut]) => {
+                if (tIn > 0 && tOut > 0) {
+                  if (tOut > otSettingStart) {
+                    const actualOtStart = Math.max(tIn, otSettingStart);
+                    if (tOut > actualOtStart) {
+                      dailyOT += (tOut - actualOtStart);
+                    }
+                  }
                 }
+              });
+            }
+
+            if (dailyOT > 0) {
+              otDaysCount++;
+              const dailyOtMultiplier = Number(log.ot_multiplier) || 1.0;
+              const pay = dailyOT * (emp.ot_hourly_rate || 0) * dailyOtMultiplier;
+              
+              if (dailyOtMultiplier === 1.5) {
+                ot_1_5_hours += dailyOT;
+                ot_1_5_pay += pay;
+              } else if (dailyOtMultiplier === 2.0) {
+                ot_2_0_hours += dailyOT;
+                ot_2_0_pay += pay;
+              } else if (dailyOtMultiplier === 3.0) {
+                ot_3_0_hours += dailyOT;
+                ot_3_0_pay += pay;
+              } else {
+                ot_1_0_hours += dailyOT;
+                ot_1_0_pay += pay;
               }
             }
-          });
-
-          if (dailyOT > 0) {
-            otDaysCount++;
-            const dailyOtMultiplier = Number(log.ot_multiplier) || 1.0;
-            const pay = dailyOT * (emp.ot_hourly_rate || 0) * dailyOtMultiplier;
-            
-            if (dailyOtMultiplier === 1.5) {
-              ot_1_5_hours += dailyOT;
-              ot_1_5_pay += pay;
-            } else if (dailyOtMultiplier === 2.0) {
-              ot_2_0_hours += dailyOT;
-              ot_2_0_pay += pay;
-            } else if (dailyOtMultiplier === 3.0) {
-              ot_3_0_hours += dailyOT;
-              ot_3_0_pay += pay;
-            } else {
-              ot_1_0_hours += dailyOT;
-              ot_1_0_pay += pay;
-            }
+          } else if (isHoliday) {
+            // No log, but it's a holiday, pay them 1x
+            normal_work_days++;
+            normal_wage_pay += (emp.hourly_rate || 0);
           }
         });
 

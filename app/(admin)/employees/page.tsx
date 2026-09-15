@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
-import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, UserX } from 'lucide-react';
+import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, UserX, UserSearch, Printer } from 'lucide-react';
 import ThaiDatePicker from '@/components/ThaiDatePicker';
 
 export default function EmployeesPage() {
@@ -308,96 +308,96 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto font-sans text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto min-h-screen animate-in fade-in duration-500">
       {/* ส่วนหัว */}
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white flex items-center gap-3">
-            <Link href="/dashboard" className="text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:text-indigo-400 transition">&larr;</Link>
+          <h1 className="text-3xl font-extrabold text-[var(--apple-text-primary)] flex items-center gap-3">
+            <Link href="/dashboard" className="text-[var(--apple-text-secondary)] hover:text-apple-blue transition">&larr;</Link>
             จัดการฐานข้อมูลพนักงาน
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 ml-10 font-medium">ระบบจัดเก็บแฟ้มประวัติ และ ข้อมูลพนักงานแบบดิจิทัล</p>
+          <p className="text-[var(--apple-text-secondary)] mt-1 ml-10 font-medium">ระบบจัดเก็บแฟ้มประวัติ และ ข้อมูลพนักงานแบบดิจิทัล</p>
         </div>
-        <button onClick={handleAddNew} className="px-6 py-2.5 bg-indigo-600 dark:bg-indigo-500 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm flex items-center gap-2">
+        <button onClick={handleAddNew} className="px-6 py-2.5 bg-apple-blue hover:opacity-90 text-white font-bold rounded-[980px] transition shadow-sm flex items-center gap-2">
           <Plus className="w-5 h-5" /> เพิ่มพนักงานใหม่
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+      <div className="bg-white dark:bg-black/20 p-4 rounded-[24px] shadow-[var(--shadow-apple-soft)] border border-slate-200 dark:border-slate-800 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex flex-col md:flex-row items-center gap-4 w-full">
           {/* Status Tabs */}
-          <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl">
-            <button onClick={() => setSelectedStatus('Active')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition ${selectedStatus === 'Active' ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>ทำงานอยู่</button>
-            <button onClick={() => setSelectedStatus('Inactive')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition ${selectedStatus === 'Inactive' ? 'bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>พ้นสภาพ/ลาออก</button>
+          <div className="flex p-1 bg-black/5 dark:bg-white/5 rounded-[980px]">
+            <button onClick={() => setSelectedStatus('Active')} className={`px-4 py-2 rounded-[980px] text-sm font-bold whitespace-nowrap transition ${selectedStatus === 'Active' ? 'bg-white dark:bg-black text-[var(--apple-text-primary)] shadow-sm' : 'text-[var(--apple-text-secondary)] hover:text-[var(--apple-text-primary)]'}`}>ทำงานอยู่</button>
+            <button onClick={() => setSelectedStatus('Inactive')} className={`px-4 py-2 rounded-[980px] text-sm font-bold whitespace-nowrap transition ${selectedStatus === 'Inactive' ? 'bg-white dark:bg-black text-rose-600 shadow-sm' : 'text-[var(--apple-text-secondary)] hover:text-[var(--apple-text-primary)]'}`}>พ้นสภาพ/ลาออก</button>
           </div>
 
           <div className="flex-1 w-full relative">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400"><Search className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" /></span>
-            <input type="text" placeholder="ค้นหาชื่อ, รหัส, ชื่อเล่น..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl outline-none font-medium transition focus:ring-2 focus:ring-indigo-500" />
+            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-[var(--apple-text-secondary)]"><Search className="w-5 h-5 absolute left-3 top-2.5" /></span>
+            <input type="text" placeholder="ค้นหาชื่อ, รหัส, ชื่อเล่น..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-black border border-slate-200 dark:border-slate-800 text-[var(--apple-text-primary)] rounded-[980px] outline-none font-medium transition focus:ring-2 focus:ring-apple-blue" />
           </div>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-          <button onClick={() => setSelectedDeptId('All')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition border ${selectedDeptId === 'All' ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>ทุกแผนก</button>
+          <button onClick={() => setSelectedDeptId('All')} className={`px-4 py-2 rounded-[980px] text-sm font-bold whitespace-nowrap transition border ${selectedDeptId === 'All' ? 'bg-apple-blue text-white border-apple-blue shadow-sm' : 'bg-transparent text-[var(--apple-text-primary)] border-slate-200 dark:border-slate-800 hover:bg-black/5 dark:hover:bg-white/10'}`}>ทุกแผนก</button>
           {departments.map(dept => (
-            <button key={dept.id} onClick={() => setSelectedDeptId(dept.id)} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition border ${selectedDeptId === dept.id ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+            <button key={dept.id} onClick={() => setSelectedDeptId(dept.id)} className={`px-4 py-2 rounded-[980px] text-sm font-bold whitespace-nowrap transition border ${selectedDeptId === dept.id ? 'bg-apple-blue text-white border-apple-blue shadow-sm' : 'bg-transparent text-[var(--apple-text-primary)] border-slate-200 dark:border-slate-800 hover:bg-black/5 dark:hover:bg-white/10'}`}>
               {dept.name_th}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="bg-white dark:bg-black/20 rounded-[24px] shadow-[var(--shadow-apple-soft)] border border-slate-200 dark:border-slate-800 overflow-hidden">
         {isLoading ? (
-          <div className="p-16 text-center text-slate-500 dark:text-slate-400 font-medium">กำลังโหลดข้อมูล...</div>
+          <div className="p-16 text-center text-[var(--apple-text-secondary)] font-medium">กำลังโหลดข้อมูล...</div>
         ) : (
           <div className="overflow-x-auto max-h-[60vh]">
-            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-              <thead className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 shadow-sm">
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
+              <thead className="bg-black/5 dark:bg-white/5 sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">รหัส/ระบบ</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">ชื่อ-นามสกุล</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">ข้อมูลติดต่อ</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">แผนก/ตำแหน่ง</th>
-                  <th className="px-6 py-4 text-center text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">สถานะ</th>
-                  <th className="px-6 py-4 text-center text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">จัดการ</th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-[var(--apple-text-secondary)]">รหัส/ระบบ</th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-[var(--apple-text-secondary)]">ชื่อ-นามสกุล</th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-[var(--apple-text-secondary)]">ข้อมูลติดต่อ</th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-[var(--apple-text-secondary)]">แผนก/ตำแหน่ง</th>
+                  <th className="px-6 py-4 text-center text-sm font-bold text-[var(--apple-text-secondary)]">สถานะ</th>
+                  <th className="px-6 py-4 text-center text-sm font-bold text-[var(--apple-text-secondary)]">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 bg-white dark:bg-slate-800">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 bg-white dark:bg-transparent">
                 {filteredEmployees.length === 0 ? (
-                  <tr><td colSpan={6} className="px-6 py-16 text-center text-slate-400 dark:text-slate-500 dark:text-slate-400 font-medium">ไม่พบข้อมูลพนักงาน</td></tr>
+                  <tr><td colSpan={6} className="px-6 py-16 text-center text-[var(--apple-text-secondary)] font-medium">ไม่พบข้อมูลพนักงาน</td></tr>
                 ) : (
                   filteredEmployees.map((emp) => (
-                    <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition cursor-pointer" onDoubleClick={() => handleViewProfile(emp)}>
+                    <tr key={emp.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition cursor-pointer" onDoubleClick={() => handleViewProfile(emp)}>
                       <td className="px-6 py-3">
-                        <div className="font-black text-indigo-700 dark:text-indigo-400">{emp.emp_code}</div>
-                        <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">สแกน: {emp.fingerprint_id || '-'}</div>
+                        <div className="font-bold text-[var(--apple-text-primary)]">{emp.emp_code}</div>
+                        <div className="text-xs text-[var(--apple-text-secondary)] mt-1">สแกน: {emp.fingerprint_id || '-'}</div>
                       </td>
                       <td className="px-6 py-3">
-                        <div className="font-bold text-slate-700 dark:text-slate-200">{emp.full_name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">ชื่อเล่น: {emp.nickname || '-'}</div>
+                        <div className="font-bold text-[var(--apple-text-primary)]">{emp.full_name}</div>
+                        <div className="text-xs text-[var(--apple-text-secondary)] mt-0.5">ชื่อเล่น: {emp.nickname || '-'}</div>
                       </td>
-                      <td className="px-6 py-3 text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                      <td className="px-6 py-3 text-xs text-[var(--apple-text-secondary)] space-y-1">
                         <div><Phone className="w-3 h-3 mr-1 inline-block" /> {emp.phone || '-'}</div>
                         <div><User className="w-5 h-5 mr-2 inline-block" /> ฉุกเฉิน: {emp.emergency_contact_phone || '-'}</div>
                       </td>
                       <td className="px-6 py-3">
-                        <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                        <span className="inline-flex px-2.5 py-1 rounded-[980px] text-xs font-bold bg-black/5 dark:bg-white/5 text-[var(--apple-text-primary)] border border-slate-200 dark:border-slate-800">
                           {emp.departments?.name_th || 'ไม่ระบุ'}
                         </span>
-                        {emp.position && <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1 ml-1">{emp.position}</div>}
+                        {emp.position && <div className="text-xs text-[var(--apple-text-secondary)] mt-1 ml-1">{emp.position}</div>}
                       </td>
                       <td className="px-6 py-3 text-center">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold border ${emp.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'}`}>
+                        <span className={`inline-flex px-3 py-1 rounded-[980px] text-xs font-bold border ${emp.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'}`}>
                           {emp.status === 'Active' ? 'ทำงานอยู่' : 'พ้นสภาพ'}
                         </span>
                       </td>
                       <td className="px-6 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => handleViewProfile(emp)} className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 hover:border-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 font-bold rounded-lg transition text-sm shadow-sm flex items-center gap-1">
-                            <Eye className="w-4 h-4 mr-1" /> ดูข้อมูล
+                          <button onClick={() => handleViewProfile(emp)} className="px-3 py-1.5 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--apple-text-primary)] font-bold rounded-[980px] transition text-sm flex items-center gap-1">
+                            <UserSearch className="w-4 h-4 mr-1" /> ดูข้อมูล
                           </button>
                           {emp.status === 'Active' && (
-                            <button onClick={(e) => { e.stopPropagation(); handleSoftDelete(emp); }} className="px-3 py-1.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 hover:border-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 font-bold rounded-lg transition text-sm shadow-sm flex items-center gap-1" title="ให้พ้นสภาพ/ลาออก">
+                            <button onClick={(e) => { e.stopPropagation(); handleSoftDelete(emp); }} className="px-3 py-1.5 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 font-bold rounded-[980px] transition text-sm flex items-center gap-1" title="ให้พ้นสภาพ/ลาออก">
                               <UserX className="w-4 h-4" />
                             </button>
                           )}
@@ -414,17 +414,20 @@ export default function EmployeesPage() {
 
       {/* Modal หลัก */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className={`bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full ${isViewMode ? 'max-w-3xl' : 'max-w-4xl'} max-h-[90vh] flex flex-col overflow-hidden`}>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 print:p-0 print:bg-white print:static">
+          <div className={`bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full ${isViewMode ? 'max-w-3xl' : 'max-w-4xl'} max-h-[90vh] flex flex-col overflow-hidden print:max-w-full print:shadow-none print:max-h-none print:overflow-visible`}>
             
             {/* Header ของ Modal */}
-            <div className={`px-6 py-4 flex justify-between items-center shrink-0 ${isViewMode ? 'bg-indigo-600 dark:bg-indigo-500 text-white' : 'bg-slate-800 dark:bg-slate-900 text-white'}`}>
+            <div className={`px-6 py-4 flex justify-between items-center shrink-0 print:hidden ${isViewMode ? 'bg-indigo-600 dark:bg-indigo-500 text-white' : 'bg-slate-800 dark:bg-slate-900 text-white'}`}>
               <h2 className="text-xl font-bold flex items-center gap-2">
                 {isViewMode ? <><ClipboardList className="w-5 h-5 mr-2" /> แฟ้มประวัติพนักงาน</> : (isEditing ? <><Edit className="w-5 h-5 mr-2" /> แก้ไขข้อมูลพนักงาน</> : <><Plus className="w-5 h-5 mr-2" /> ลงทะเบียนพนักงานใหม่</>)}
               </h2>
               <div className="flex items-center gap-4">
                 {isViewMode && (
                   <>
+                    <button onClick={() => window.print()} className="px-4 py-1.5 bg-white text-indigo-700 dark:text-white dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm border border-indigo-200">
+                      <Printer className="w-4 h-4 mr-1 inline-block" /> พิมพ์โปรไฟล์
+                    </button>
                     <button onClick={handleEditFromView} className="px-4 py-1.5 bg-white text-indigo-700 dark:text-white dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm">
                       <Edit className="w-4 h-4 mr-1 inline-block" /> แก้ไข
                     </button>

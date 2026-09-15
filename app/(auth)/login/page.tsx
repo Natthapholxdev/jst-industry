@@ -159,7 +159,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-10 text-center md:text-left">
-            <h2 className="text-3xl font-black text-slate-800 dark:text-white mb-3">เข้าสู่ระบบ (Back Office)</h2>
+            <h2 className="text-3xl font-black text-slate-800 dark:text-white mb-3">เข้าสู่ระบบ</h2>
             <p className="text-slate-500 dark:text-slate-400 font-medium">กรุณากรอกชื่อผู้ใช้และรหัสผ่านเพื่อเข้าใช้งานระบบจัดการ</p>
           </div>
 
@@ -172,7 +172,7 @@ export default function LoginPage() {
                 </div>
                 <input 
                   type="text" 
-                  placeholder="admin" 
+                  placeholder="กรอกชื่อผู้ใช้" 
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 dark:focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-lg placeholder:font-medium placeholder:text-slate-400 shadow-sm"

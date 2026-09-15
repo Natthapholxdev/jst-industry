@@ -10,10 +10,24 @@ import ExecutiveChart from '@/components/ExecutiveChart';
 import SymbolReport from '@/components/SymbolReport';
 import DetailedTimeReport from '@/components/DetailedTimeReport';
 
+const timeToHours = (timeStr?: string) => {
+  if (!timeStr || typeof timeStr !== 'string' || timeStr === '-') return 0;
+  const cleanStr = timeStr.replace('.', ':').trim();
+  if (!cleanStr.includes(':')) {
+    const num = Number(cleanStr);
+    return isNaN(num) ? 0 : num;
+  }
+  const [h, m] = cleanStr.split(':').map(Number);
+  return (h || 0) + ((m || 0) / 60);
+};
+
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'symbol' | 'detailed'>('overview');
   const [rawEmployees, setRawEmployees] = useState<any[]>([]);
   const [rawLogs, setRawLogs] = useState<any[]>([]);
+  const [shifts, setShifts] = useState<any[]>([]);
+  const [otSetting, setOtSetting] = useState<string>('18:30');
+  const [holidays, setHolidays] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -33,11 +47,13 @@ export default function DashboardPage() {
     fetch('/api/presentation').then(res => res.json()).then(data => {
       if (data.success && data.data) {
         setIsPresentationActive(data.data.is_active === 1);
-        if (data.data.payload) {
+        let payload = data.data.payload;
+        if (typeof payload === 'string') {
           try {
-            setPresentationData(JSON.parse(data.data.payload));
+            payload = JSON.parse(payload);
           } catch(e) {}
         }
+        setPresentationData(payload);
       }
     }).catch(console.error);
   }, []);
@@ -138,14 +154,21 @@ export default function DashboardPage() {
           endDate = todayStr;
         }
 
+        const { data: shiftsData } = await supabase.from('shifts').select('*');
+        const { data: settingData } = await supabase.from('shift_settings').select('ot_in_end').eq('id', 1).single();
+        const { data: holidaysData } = await supabase.from('holidays').select('*').gte('holiday_date', startDate).lte('holiday_date', endDate);
+
         const { data: logs } = await supabase
           .from('attendance_logs')
-          .select('log_date, employee_id, time_in_1, time_out_1, time_in_2, time_out_2, remark')
+          .select('*')
           .gte('log_date', startDate)
           .lte('log_date', endDate)
           .order('log_date', { ascending: true });
 
         setRawLogs(logs || []);
+        setShifts(shiftsData || []);
+        setOtSetting(settingData?.ot_in_end || '18:30');
+        setHolidays(holidaysData || []);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -193,34 +216,89 @@ export default function DashboardPage() {
     return result;
   }, [rawEmployees, searchTerm, filterDept, filterStatus, sortConfig]);
 
-  // 3. ผูกข้อมูลสถานะของวันล่าสุดเข้ากับพนักงานในตาราง
   const tableEmployees = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     const tableDate = dateRangeType === 'today' ? todayStr : (dateRangeType === 'custom' ? customEnd : todayStr);
-    const tableDateLogs = rawLogs.filter(l => l.log_date === tableDate);
+    
+    // Create an array of dates in the range for holiday calculation
+    const dateArray: string[] = [];
+    let currentDate = new Date(customStart);
+    const stopDate = new Date(customEnd);
+    if (dateRangeType === 'today') {
+      dateArray.push(todayStr);
+    } else {
+      while (currentDate <= stopDate) {
+        dateArray.push(currentDate.toISOString().split('T')[0]);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    }
 
     return processedEmployees.map(emp => {
-      const log = tableDateLogs.find(a => a.employee_id === emp.id);
+      const logToday = rawLogs.find(a => a.employee_id === emp.id && a.log_date === tableDate);
       let todayStatus = 'หยุด/ยังไม่เข้างาน';
       let isMissing = false;
       let isLeave = false;
 
-      if (log) {
-        const hasTimeIn = log.time_in_1 || log.time_in_2;
-        isMissing = (log.time_in_1 && !log.time_out_1) || (log.time_in_2 && !log.time_out_2);
-        isLeave = !hasTimeIn && !!log.remark;
+      if (logToday) {
+        const hasTimeIn = logToday.time_in_1 || logToday.time_in_2;
+        isMissing = (logToday.time_in_1 && !logToday.time_out_1) || (logToday.time_in_2 && !logToday.time_out_2);
+        isLeave = !hasTimeIn && !!logToday.remark;
         
         if (isMissing) {
           todayStatus = 'ลืมสแกนออก';
         } else if (hasTimeIn) {
           todayStatus = 'เข้างานปกติ';
         } else if (isLeave) {
-          todayStatus = `ลา/มีปัญหา (${log.remark})`;
+          todayStatus = `ลา/มีปัญหา (${logToday.remark})`;
         }
       }
-      return { ...emp, todayStatus, isMissingPunch: isMissing, isLeave };
+
+      // Calculate Period Stats
+      const empLogs = rawLogs.filter(a => a.employee_id === emp.id);
+      let presentDays = 0;
+      let leaveDays = 0;
+      let totalOT = 0;
+
+      const empShift = shifts.find(s => s.id === emp.shift_id);
+      const otSettingStart = timeToHours(empShift?.ot_start_time || otSetting);
+
+      // We need to loop over dates to handle "Paid Holidays" logic
+      dateArray.forEach(dateStr => {
+        const log = empLogs.find(l => l.log_date === dateStr);
+        const isHoliday = holidays.some(h => h.holiday_date === dateStr);
+
+        if (log) {
+          const hasTimeIn = log.time_in_1 || log.time_in_2;
+          const isL = !hasTimeIn && !!log.remark;
+          
+          if (hasTimeIn) presentDays++;
+          else if (isL) leaveDays++;
+
+          // Calculate OT
+          const in1 = timeToHours(log.time_in_1); const out1 = timeToHours(log.time_out_1);
+          const in2 = timeToHours(log.time_in_2); const out2 = timeToHours(log.time_out_2);
+          const in3 = timeToHours(log.time_in_3); const out3 = timeToHours(log.time_out_3);
+          const in4 = timeToHours(log.time_in_4); const out4 = timeToHours(log.time_out_4);
+          
+          const pairs = [[in1, out1], [in2, out2], [in3, out3], [in4, out4]];
+          pairs.forEach(([tIn, tOut]) => {
+            if (tIn > 0 && tOut > 0 && tOut > otSettingStart) {
+              const actualOtStart = Math.max(tIn, otSettingStart);
+              if (tOut > actualOtStart) {
+                totalOT += (tOut - actualOtStart);
+              }
+            }
+          });
+        } else if (isHoliday) {
+          // If no log but it's a holiday, count as a "Paid Work Day" logically
+          // Depending on rules, maybe it's added to presentDays to show they get paid
+          presentDays++;
+        }
+      });
+
+      return { ...emp, todayStatus, isMissingPunch: isMissing, isLeave, presentDays, leaveDays, totalOT };
     });
-  }, [processedEmployees, rawLogs, dateRangeType, customEnd]);
+  }, [processedEmployees, rawLogs, dateRangeType, customStart, customEnd, shifts, otSetting, holidays]);
 
 
   // 4. คำนวณ Chart และ Stats จากพนักงานที่ผ่านการกรองแล้ว (ทำให้กราฟแสดงเฉพาะคนที่ค้นหาได้)
@@ -360,11 +438,11 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto font-sans bg-slate-50 dark:bg-slate-900 min-h-screen">
+    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto min-h-screen animate-in fade-in duration-500">
       
       {/* Presentation Banner */}
       {isPresentationActive && (
-        <div className="mb-6 p-4 bg-emerald-500 text-white rounded-2xl shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-4">
+        <div className="mb-6 p-4 bg-apple-blue text-white rounded-[24px] shadow-[var(--shadow-apple-soft)] flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/20 rounded-full animate-pulse">
               <Cast className="w-6 h-6" />
@@ -388,21 +466,21 @@ export default function DashboardPage() {
       {/* Header Section */}
       <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
+          <h1 className="text-3xl font-extrabold text-[var(--apple-text-primary)] flex items-center gap-3">
             ศูนย์กลางข้อมูลผู้บริหาร (Dashboard)
             {searchTerm && (
-              <span className="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold flex items-center gap-1">
+              <span className="text-sm bg-apple-blue/10 text-apple-blue px-3 py-1 rounded-[980px] font-bold flex items-center gap-1">
                 <UserSearch className="w-4 h-4" /> ดูข้อมูลเฉพาะ: {searchTerm}
-                <button onClick={() => setSearchTerm('')} className="ml-2 text-indigo-400 hover:text-indigo-700">✕</button>
+                <button onClick={() => setSearchTerm('')} className="ml-2 opacity-70 hover:opacity-100">✕</button>
               </span>
             )}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">ภาพรวมระบบ สถิติการลงเวลาแบบละเอียด และการค้นหาพนักงาน</p>
+          <p className="text-[var(--apple-text-secondary)] mt-1 font-medium">ภาพรวมระบบ สถิติการลงเวลาแบบละเอียด และการค้นหาพนักงาน</p>
         </div>
         
         {/* Executive Date Filter - แบบครบครัน */}
-        <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-          <div className="flex items-center pl-2 text-slate-500">
+        <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-black/20 p-2 rounded-[24px] shadow-[var(--shadow-apple-soft)] border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center pl-2 text-[var(--apple-text-secondary)]">
             <CalendarIcon className="w-5 h-5 mr-2" />
             <span className="text-sm font-bold mr-2">ช่วงเวลา:</span>
           </div>
@@ -410,7 +488,7 @@ export default function DashboardPage() {
           <select 
             value={dateRangeType}
             onChange={(e) => setDateRangeType(e.target.value as any)}
-            className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition"
+            className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--apple-text-primary)] font-bold rounded-[980px] outline-none focus:ring-2 focus:ring-apple-blue cursor-pointer transition"
           >
             <option value="today">วันนี้</option>
             <option value="week">7 วันล่าสุด</option>
@@ -423,45 +501,45 @@ export default function DashboardPage() {
               <ThaiDatePicker 
                 value={customStart}
                 onChange={(val) => setCustomStart(val)}
-                className="w-32 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                className="w-32 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[980px] outline-none text-sm font-medium focus:ring-2 focus:ring-apple-blue"
               />
-              <span className="text-slate-400 font-medium">ถึง</span>
+              <span className="text-[var(--apple-text-secondary)] font-medium">ถึง</span>
               <ThaiDatePicker 
                 value={customEnd}
                 onChange={(val) => setCustomEnd(val)}
-                className="w-32 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                className="w-32 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[980px] outline-none text-sm font-medium focus:ring-2 focus:ring-apple-blue"
               />
             </div>
           )}
 
-          <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
+          <div className="w-px h-8 bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
 
-          <Link href="/attendance" className="px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-sm transition flex items-center">
+          <Link href="/attendance" className="px-5 py-2 bg-apple-blue text-white font-bold rounded-[980px] hover:opacity-90 shadow-sm transition flex items-center">
             <Clock className="w-4 h-4 mr-2" /> บันทึกเวลา
           </Link>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 overflow-x-auto pb-1">
+      <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-1">
         <button 
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2.5 font-bold text-sm rounded-t-lg transition flex items-center gap-2 whitespace-nowrap
-            ${activeTab === 'overview' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border-b-2 border-indigo-600' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          className={`px-4 py-2.5 font-bold text-sm rounded-t-[12px] transition flex items-center gap-2 whitespace-nowrap
+            ${activeTab === 'overview' ? 'text-[var(--apple-text-primary)] border-b-[3px] border-apple-blue' : 'text-[var(--apple-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'}`}
         >
           <LayoutDashboard className="w-4 h-4" /> ภาพรวมสถิติ
         </button>
         <button 
           onClick={() => setActiveTab('symbol')}
-          className={`px-4 py-2.5 font-bold text-sm rounded-t-lg transition flex items-center gap-2 whitespace-nowrap
-            ${activeTab === 'symbol' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border-b-2 border-indigo-600' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          className={`px-4 py-2.5 font-bold text-sm rounded-t-[12px] transition flex items-center gap-2 whitespace-nowrap
+            ${activeTab === 'symbol' ? 'text-[var(--apple-text-primary)] border-b-[3px] border-apple-blue' : 'text-[var(--apple-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'}`}
         >
           <BarChart3 className="w-4 h-4" /> รายงานแบบสัญลักษณ์
         </button>
         <button 
           onClick={() => setActiveTab('detailed')}
-          className={`px-4 py-2.5 font-bold text-sm rounded-t-lg transition flex items-center gap-2 whitespace-nowrap
-            ${activeTab === 'detailed' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border-b-2 border-indigo-600' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          className={`px-4 py-2.5 font-bold text-sm rounded-t-[12px] transition flex items-center gap-2 whitespace-nowrap
+            ${activeTab === 'detailed' ? 'text-[var(--apple-text-primary)] border-b-[3px] border-apple-blue' : 'text-[var(--apple-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'}`}
         >
           <FileText className="w-4 h-4" /> รายงานแบบเวลาละเอียด
         </button>
@@ -473,40 +551,40 @@ export default function DashboardPage() {
       <div className={activeTab === 'overview' ? 'block' : 'hidden'}>
 
       {isLoading ? (
-        <div className="text-center p-16 text-slate-400 font-bold animate-pulse text-lg flex flex-col items-center justify-center">
-          <svg className="animate-spin h-8 w-8 mb-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        <div className="text-center p-16 text-[var(--apple-text-secondary)] font-medium animate-pulse text-lg flex flex-col items-center justify-center">
+          <svg className="animate-spin h-8 w-8 mb-4 text-apple-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
           กำลังวิเคราะห์ข้อมูล...
         </div>
       ) : (
         <>
           {/* 🌟 Key Metrics Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
-              <span className="text-slate-500 dark:text-slate-400 font-bold text-sm mb-1">จำนวนที่ค้นพบ</span>
+            <div className="bg-white dark:bg-black/20 rounded-[24px] p-5 shadow-[var(--shadow-apple-soft)] border border-slate-200 dark:border-slate-800 flex flex-col">
+              <span className="text-[var(--apple-text-secondary)] font-semibold text-sm mb-1">จำนวนที่ค้นพบ</span>
               <div className="flex items-end gap-2">
-                <span className="text-4xl font-black text-slate-800 dark:text-slate-100">{stats.totalEmployees}</span>
-                <span className="text-slate-400 font-medium mb-1">คน</span>
+                <span className="text-4xl font-extrabold text-[var(--apple-text-primary)]">{stats.totalEmployees}</span>
+                <span className="text-[var(--apple-text-secondary)] font-medium mb-1">คน</span>
               </div>
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col border-l-4 border-l-emerald-500">
-              <span className="text-slate-500 dark:text-slate-400 font-bold text-sm mb-1">กำลังทำงานอยู่ (Active)</span>
+            <div className="bg-white dark:bg-black/20 rounded-[24px] p-5 shadow-[var(--shadow-apple-soft)] border border-slate-200 dark:border-slate-800 flex flex-col">
+              <span className="text-[var(--apple-text-secondary)] font-semibold text-sm mb-1">กำลังทำงานอยู่ (Active)</span>
               <div className="flex items-end gap-2">
-                <span className="text-4xl font-black text-emerald-600 dark:text-emerald-400">{stats.activeEmployees}</span>
-                <span className="text-slate-400 font-medium mb-1">คน</span>
+                <span className="text-4xl font-extrabold text-emerald-600 dark:text-emerald-400">{stats.activeEmployees}</span>
+                <span className="text-[var(--apple-text-secondary)] font-medium mb-1">คน</span>
               </div>
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col border-l-4 border-l-sky-500">
-              <span className="text-slate-500 dark:text-slate-400 font-bold text-sm mb-1">เฉลี่ยมาทำงานต่อวัน (ช่วงเวลา)</span>
+            <div className="bg-white dark:bg-black/20 rounded-[24px] p-5 shadow-[var(--shadow-apple-soft)] border border-slate-200 dark:border-slate-800 flex flex-col">
+              <span className="text-[var(--apple-text-secondary)] font-semibold text-sm mb-1">เฉลี่ยมาทำงานต่อวัน (ช่วงเวลา)</span>
               <div className="flex items-end gap-2">
-                <span className="text-4xl font-black text-sky-600 dark:text-sky-400">{stats.avgPresent}</span>
-                <span className="text-slate-400 font-medium mb-1">คน/วัน</span>
+                <span className="text-4xl font-extrabold text-apple-blue">{stats.avgPresent}</span>
+                <span className="text-[var(--apple-text-secondary)] font-medium mb-1">คน/วัน</span>
               </div>
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col border-l-4 border-l-indigo-500">
-              <span className="text-slate-500 dark:text-slate-400 font-bold text-sm mb-1">มาทำงานล่าสุด ({dateRangeType === 'today' ? 'วันนี้' : customEnd})</span>
+            <div className="bg-white dark:bg-black/20 rounded-[24px] p-5 shadow-[var(--shadow-apple-soft)] border border-slate-200 dark:border-slate-800 flex flex-col">
+              <span className="text-[var(--apple-text-secondary)] font-semibold text-sm mb-1">มาทำงานล่าสุด ({dateRangeType === 'today' ? 'วันนี้' : customEnd})</span>
               <div className="flex items-end gap-2">
-                <span className="text-4xl font-black text-indigo-600 dark:text-indigo-400">{stats.todayAttendance}</span>
-                <span className="text-slate-400 font-medium mb-1">คน</span>
+                <span className="text-4xl font-extrabold text-apple-blue">{stats.todayAttendance}</span>
+                <span className="text-[var(--apple-text-secondary)] font-medium mb-1">คน</span>
               </div>
             </div>
           </div>
@@ -536,16 +614,16 @@ export default function DashboardPage() {
           </div>
 
           {/* 🌟 Data Table Section with Advanced Controls & Pagination */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
+          <div className="bg-white dark:bg-black/20 rounded-[24px] shadow-[var(--shadow-apple-soft)] border border-slate-200 dark:border-slate-800 flex flex-col">
             
             {/* Action Bar: Search & Filters */}
-            <div className="p-4 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50 rounded-t-2xl flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-black/5 dark:bg-white/5 rounded-t-[24px] flex flex-col md:flex-row gap-4 items-center justify-between">
               
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-slate-700 dark:text-slate-200 mr-2">ข้อมูลรายบุคคล</h3>
+                <h3 className="font-bold text-[var(--apple-text-primary)] mr-2">ข้อมูลรายบุคคล</h3>
                 {/* Search Bar */}
                 <div className="relative w-full md:w-64">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" /></span>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-[var(--apple-text-secondary)]"><Search className="w-4 h-4 absolute left-3 top-2.5" /></span>
                   <input 
                     type="text" 
                     placeholder="ค้นหารหัส, ชื่อ..." 
@@ -554,7 +632,7 @@ export default function DashboardPage() {
                       setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="w-full pl-9 pr-4 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-sm font-medium focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                    className="w-full pl-9 pr-4 py-1.5 bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-[980px] outline-none text-sm font-medium focus:border-apple-blue focus:ring-1 focus:ring-apple-blue transition"
                   />
                 </div>
               </div>
@@ -567,7 +645,7 @@ export default function DashboardPage() {
                     setFilterDept(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-600 dark:text-slate-300 text-sm cursor-pointer hover:bg-slate-50 dark:bg-slate-900 transition"
+                  className="px-3 py-1.5 bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-[980px] outline-none font-bold text-[var(--apple-text-primary)] text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition"
                 >
                   <option value="All">ทุกแผนก</option>
                   {departments.map(d => (
@@ -581,7 +659,7 @@ export default function DashboardPage() {
                     setFilterStatus(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-600 dark:text-slate-300 text-sm cursor-pointer hover:bg-slate-50 dark:bg-slate-900 transition"
+                  className="px-3 py-1.5 bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-[980px] outline-none font-bold text-[var(--apple-text-primary)] text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition"
                 >
                   <option value="All">ทุกสถานะ</option>
                   <option value="Active">ทำงานอยู่ (Active)</option>
@@ -592,20 +670,29 @@ export default function DashboardPage() {
 
             {/* Table Area (Scrollable) */}
             <div className="overflow-x-auto min-h-[300px]">
-              <table className="min-w-full divide-y divide-slate-200 relative">
-                <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 shadow-sm">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 relative">
+                <thead className="bg-black/5 dark:bg-white/5 sticky top-0 z-10 shadow-sm">
                   <tr>
-                    <th onClick={() => handleSort('emp_code')} className="px-6 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:bg-slate-100 dark:bg-slate-800/50 transition group select-none">
+                    <th onClick={() => handleSort('emp_code')} className="px-6 py-3 text-left text-xs font-black text-[var(--apple-text-secondary)] uppercase tracking-wider cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition group select-none">
                       รหัส {sortConfig.key === 'emp_code' && (sortConfig.direction === 'asc' ? '▲' : '▼')}
                     </th>
-                    <th onClick={() => handleSort('full_name')} className="px-6 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:bg-slate-100 dark:bg-slate-800/50 transition group select-none">
+                    <th onClick={() => handleSort('full_name')} className="px-6 py-3 text-left text-xs font-black text-[var(--apple-text-secondary)] uppercase tracking-wider cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition group select-none">
                       ชื่อ-นามสกุล {sortConfig.key === 'full_name' && (sortConfig.direction === 'asc' ? '▲' : '▼')}
                     </th>
-                    <th onClick={() => handleSort('department')} className="px-6 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:bg-slate-100 dark:bg-slate-800/50 transition group select-none">
+                    <th onClick={() => handleSort('department')} className="px-6 py-3 text-left text-xs font-black text-[var(--apple-text-secondary)] uppercase tracking-wider cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition group select-none">
                       แผนก / ตำแหน่ง {sortConfig.key === 'department' && (sortConfig.direction === 'asc' ? '▲' : '▼')}
                     </th>
                     <th className="px-6 py-3 text-center text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                       สถานะวันที่ ({dateRangeType === 'today' ? 'วันนี้' : (dateRangeType === 'custom' ? customEnd : new Date().toISOString().split('T')[0])})
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                      ทำงาน (วัน)
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                      หยุด/ลา (วัน)
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                      รวม OT (ชม.)
                     </th>
                     <th className="px-6 py-3 text-center text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                       เจาะลึก
@@ -646,6 +733,15 @@ export default function DashboardPage() {
                           }`}>
                             {emp.todayStatus}
                           </span>
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-center font-bold text-slate-700 dark:text-slate-300">
+                          {emp.presentDays}
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-center font-bold text-rose-600 dark:text-rose-400">
+                          {emp.leaveDays}
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-center font-bold text-orange-600 dark:text-orange-400">
+                          {emp.totalOT > 0 ? emp.totalOT.toFixed(1) : '-'}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-center">
                           <button 
