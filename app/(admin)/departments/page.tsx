@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
 import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame } from 'lucide-react';
+import { ROUTES } from '@/lib/routes';
 
 export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<any[]>([]);
@@ -72,13 +73,13 @@ export default function DepartmentsPage() {
 
       let res;
       if (isEditing) {
-        res = await fetch('/api/departments', {
+        res = await fetch(ROUTES.API.DEPARTMENTS, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...payload, id: formData.id })
         });
       } else {
-        res = await fetch('/api/departments', {
+        res = await fetch(ROUTES.API.DEPARTMENTS, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -102,7 +103,7 @@ export default function DepartmentsPage() {
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            <Link href="/dashboard" className="text-slate-400 hover:text-cyan-600 transition">&larr;</Link>
+            <Link href={ROUTES.DASHBOARD} className="text-slate-400 hover:text-cyan-600 transition">&larr;</Link>
             จัดการแผนก (Departments)
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 ml-10 font-medium">ตั้งค่าแผนกเพื่อใช้จัดกลุ่มพนักงาน และเป็นตัวนำหน้ารหัสบริษัท</p>

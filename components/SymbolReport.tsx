@@ -19,7 +19,7 @@ export default function SymbolReport() {
     return d.toISOString().split('T')[0];
   });
 
-  const [reportData, setReportData] = useState<{ employees: any[], dates: string[], logsMap: any, shifts: any[], settings: any } | null>(null);
+  const [reportData, setReportData] = useState<{ employees: any[], dates: string[], logsMap: any, shifts: any[] } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const getDatesInRange = (start: string, end: string) => {
@@ -65,8 +65,6 @@ export default function SymbolReport() {
         .lte('log_date', endDate);
 
       const { data: shifts } = await supabase.from('shifts').select('*');
-      const { data: settings } = await supabase.from('shift_settings').select('ot_in_end').eq('id', 1).single();
-
       if (!employees) throw new Error("ไม่พบข้อมูลพนักงาน");
 
       const logsMap: any = {};
@@ -77,7 +75,7 @@ export default function SymbolReport() {
 
       const dates = getDatesInRange(startDate, endDate);
 
-      setReportData({ employees, dates, logsMap, shifts: shifts || [], settings: settings || {} });
+      setReportData({ employees, dates, logsMap, shifts: shifts || [] });
 
     } catch (error) {
       console.error('Report error:', error);
@@ -110,25 +108,27 @@ export default function SymbolReport() {
     const payMulti = log.pay_multiplier || 1.0;
     const isDoublePay = payMulti >= 2.0;
 
-    const empShift = dataMap.shifts.find((s: any) => s.id === emp.shift_id) || { ot_start_time: '18:30', time_in: '08:00' };
-    const otSettingStart = timeToHours(dataMap.settings?.ot_in_end || empShift.ot_start_time);
+    const empShift = dataMap.shifts.find((s: any) => s.id === emp.shift_id) || { time_in: '08:00' };
     
     let isMissingPunch = false;
     const pairs = [[in1, out1], [in2, out2], [in3, out3]];
-    let dailyOT = 0;
+    let recordedOT = 0;
     if (log.time_in_3 === 'OT') {
-      dailyOT += Number(log.time_out_3) || 0;
+      recordedOT += Number(log.time_out_3) || 0;
     }
+    
+    // OT must be recorded in the dedicated OT fields; normal clock-out times never create OT automatically.
+    if (log.time_in_3 !== 'OT' && in3 > 0 && out3 > in3) {
+      recordedOT += out3 - in3;
+    }
+
     pairs.forEach(([tIn, tOut]) => {
       if (tIn > 0 && tOut === 0) isMissingPunch = true;
-      if (tIn > 0 && tOut > 0 && tOut > otSettingStart && log.time_in_3 !== 'OT') {
-        const actualOtStart = Math.max(tIn, otSettingStart);
-        if (tOut > actualOtStart) dailyOT += (tOut - actualOtStart);
-      }
     });
 
     const shiftStart = timeToHours(empShift.time_in || '08:00');
     const isLate = in1 > 0 && in1 > shiftStart;
+    const isOTApproved = log.ot_approved === true;
     
     // Determine Time Text
     let timeText = log.time_in_1 && log.time_in_1 !== '-' ? log.time_in_1 : (log.time_in_2 && log.time_in_2 !== '-' ? log.time_in_2 : '?');
@@ -139,7 +139,9 @@ export default function SymbolReport() {
       timeText,
       isLate,
       isMissingPunch,
-      dailyOT,
+      dailyOT: isOTApproved ? recordedOT : 0,
+      recordedOT,
+      isOTApproved,
       isDoublePay,
       remark: log.remark,
       isRemark: false
@@ -234,7 +236,7 @@ export default function SymbolReport() {
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            รายงานเวลาทำงาน
+            รายงานแบบเวลา
           </h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">สรุปข้อมูลตารางลงเวลา (เวลาเข้า, OT, 2 แรง)</p>
         </div>
@@ -304,7 +306,7 @@ export default function SymbolReport() {
                 const res = await fetch('/api/presentation', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ is_active: true, view_mode: 'symbol', title: 'รายงานแบบสัญลักษณ์', payload: { reportData, startDate, endDate } })
+                  body: JSON.stringify({ is_active: true, view_mode: 'symbol', title: 'รายงานแบบเวลา', payload: { reportData, startDate, endDate } })
                 });
                 const result = await res.json();
                 if (result.success) {
@@ -340,14 +342,14 @@ export default function SymbolReport() {
                   {reportData.dates.map((date) => {
                     const dayNum = date.split('-')[2];
                     return (
-                      <th key={date} className="w-[45px] min-w-[45px] px-1 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-slate-700 dark:text-slate-200">
+                      <th key={date} className="w-[85px] min-w-[85px] px-1 py-3 border border-slate-200 dark:border-slate-700 text-center text-sm font-bold text-slate-700 dark:text-slate-200">
                         {dayNum}
                       </th>
                     );
                   })}
-                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20">ทำงาน<br/>(วัน)</th>
-                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20">ลา<br/>(วัน)</th>
-                  <th className="w-[60px] min-w-[60px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20">รวม OT<br/>(ชม.)</th>
+                  <th className="w-[70px] min-w-[70px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20">ทำงาน<br/>(วัน)</th>
+                  <th className="w-[70px] min-w-[70px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20">ลา<br/>(วัน)</th>
+                  <th className="w-[70px] min-w-[70px] px-2 py-3 border border-slate-200 dark:border-slate-700 text-center font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20">รวม OT<br/>(ชม.)</th>
                 </tr>
               </thead>
               
@@ -395,34 +397,29 @@ export default function SymbolReport() {
                       }
 
                       return (
-                        <td key={date} className={`w-[60px] min-w-[60px] px-1 py-1 border border-slate-200 dark:border-slate-700 text-center text-xs leading-tight ${bgClass}`}>
+                        <td key={date} className={`w-[85px] min-w-[85px] px-1 py-2 border border-slate-200 dark:border-slate-700 text-center leading-tight ${bgClass}`}>
                           {data.isAbsent ? (
-                            <div className={`font-bold ${data.isRemark ? 'text-amber-600 dark:text-amber-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                            <div className={`font-bold text-sm ${data.isRemark ? 'text-amber-600 dark:text-amber-400' : 'text-rose-500 dark:text-rose-400'}`}>
                               {data.text}
                             </div>
                           ) : (
-                            <div className="flex flex-col items-center justify-center gap-0.5">
-                              <div className={`font-bold ${data.isLate ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <div className={`font-bold text-sm ${data.isLate ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
                                 {data.timeText}
                               </div>
-                              {data.dailyOT > 0 && (
-                                <div className="text-[10px] font-bold text-orange-600 dark:text-orange-400 whitespace-nowrap">
-                                  OT {data.dailyOT.toFixed(1)} ชม.
+                              {data.recordedOT > 0 && (
+                                <div className={`text-[11px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded-full ${data.isOTApproved ? 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30' : 'text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-slate-700'}`}>
+                                  {data.isOTApproved ? `OT ${data.recordedOT.toFixed(1)} ชม.` : `OT รออนุมัติ ${data.recordedOT.toFixed(1)} ชม.`}
                                 </div>
                               )}
                               {data.isDoublePay && (
-                                <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                                <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">
                                   2 แรง
                                 </div>
                               )}
                               {data.isMissingPunch && (
-                                <div className="text-[10px] font-bold text-fuchsia-600 dark:text-fuchsia-400">
-                                  ?
-                                </div>
-                              )}
-                              {data.remark && data.remark !== 'นอกเวลา' && (
-                                <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 truncate w-full" title={data.remark}>
-                                  [{data.remark}]
+                                <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 font-medium" title="ข้อมูลตอกบัตรไม่ครบ (มีเข้าแต่ไม่มีออก หรือมีออกแต่ไม่มีเข้า)">
+                                  ⚠️ สแกนไม่ครบ
                                 </div>
                               )}
                             </div>
@@ -431,9 +428,9 @@ export default function SymbolReport() {
                       );
                     })}
                     
-                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/10">{totalWorkDays}</td>
-                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-amber-600 bg-amber-50/50 dark:bg-amber-900/10">{totalLeaveDays}</td>
-                    <td className="w-[60px] min-w-[60px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/10">{totalOT > 0 ? totalOT.toFixed(1) : '-'}</td>
+                    <td className="w-[70px] min-w-[70px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/10 text-sm">{totalWorkDays}</td>
+                    <td className="w-[70px] min-w-[70px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-amber-600 bg-amber-50/50 dark:bg-amber-900/10 text-sm">{totalLeaveDays}</td>
+                    <td className="w-[70px] min-w-[70px] px-2 py-2.5 border border-slate-200 dark:border-slate-700 text-center font-bold text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/10 text-sm">{totalOT > 0 ? totalOT.toFixed(1) : '-'}</td>
                   </tr>
                 )})}
               </tbody>

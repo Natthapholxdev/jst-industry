@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Cast, RefreshCw, XCircle } from 'lucide-react';
 import ExecutiveChart from '@/components/ExecutiveChart';
+import { ROUTES } from '@/lib/routes';
 
 // Helper functions for Symbol Report
 const timeToHours = (timeStr?: string) => {
@@ -78,7 +79,7 @@ export default function LivePresentationPage() {
 
   const fetchState = async () => {
     try {
-      const res = await fetch('/api/presentation');
+      const res = await fetch(ROUTES.API.PRESENTATION);
       const data = await res.json();
       if (data.success && data.data) {
         let payload = data.data.payload;

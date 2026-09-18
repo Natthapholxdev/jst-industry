@@ -2,6 +2,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { ROUTES } from '@/lib/routes';
 import { 
   LayoutDashboard, Clock, Users, Building2, CalendarOff, 
   FileText, BarChart3, Settings, LogOut, User,
@@ -62,9 +63,9 @@ export default function AdminDashboardLayout({
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch(ROUTES.API.AUTH_LOGOUT, { method: 'POST' });
     localStorage.removeItem('userSession');
-    router.push('/login');
+    router.push(ROUTES.LOGIN);
   };
 
   const toggleGroup = (title: string) => {
@@ -105,7 +106,7 @@ export default function AdminDashboardLayout({
           </div>
           {!collapsed && (
             <span className="ml-3 font-semibold text-lg text-[var(--apple-text-primary)] tracking-tight whitespace-nowrap animate-in fade-in duration-300">
-              TimeManage
+              JST-INDUSTRY
             </span>
           )}
         </div>

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Calendar as CalendarIcon, UserSearch, Cast, X } from 'lucide-react';
+import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Calendar as CalendarIcon, UserSearch, Cast, X, ArrowUpRight, ClipboardCheck, PackageCheck, FilePlus2, SlidersHorizontal } from 'lucide-react';
 import Swal from 'sweetalert2';
 import ThaiDatePicker from '@/components/ThaiDatePicker';
 import { supabase } from '@/lib/supabase';
@@ -9,6 +9,7 @@ import TablePagination from '@/components/TablePagination';
 import ExecutiveChart from '@/components/ExecutiveChart';
 import SymbolReport from '@/components/SymbolReport';
 import DetailedTimeReport from '@/components/DetailedTimeReport';
+import { ROUTES } from '@/lib/routes';
 
 const timeToHours = (timeStr?: string) => {
   if (!timeStr || typeof timeStr !== 'string' || timeStr === '-') return 0;
@@ -25,10 +26,9 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'symbol' | 'detailed'>('overview');
   const [rawEmployees, setRawEmployees] = useState<any[]>([]);
   const [rawLogs, setRawLogs] = useState<any[]>([]);
-  const [shifts, setShifts] = useState<any[]>([]);
-  const [otSetting, setOtSetting] = useState<string>('18:30');
   const [holidays, setHolidays] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [dateRangeType, setDateRangeType] = useState<'today' | 'week' | 'month' | 'custom'>('week');
@@ -44,7 +44,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // Check initial presentation state
-    fetch('/api/presentation').then(res => res.json()).then(data => {
+    fetch(ROUTES.API.PRESENTATION).then(res => res.json()).then(data => {
       if (data.success && data.data) {
         setIsPresentationActive(data.data.is_active === 1);
         let payload = data.data.payload;
@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
   const startPresentation = async (viewMode: string, title: string, payload: any) => {
     try {
-      const res = await fetch('/api/presentation', {
+      const res = await fetch(ROUTES.API.PRESENTATION, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: true, view_mode: viewMode, title, payload })
@@ -83,7 +83,7 @@ export default function DashboardPage() {
 
   const stopPresentation = async () => {
     try {
-      const res = await fetch('/api/presentation', {
+      const res = await fetch(ROUTES.API.PRESENTATION, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: false })
@@ -154,8 +154,6 @@ export default function DashboardPage() {
           endDate = todayStr;
         }
 
-        const { data: shiftsData } = await supabase.from('shifts').select('*');
-        const { data: settingData } = await supabase.from('shift_settings').select('ot_in_end').eq('id', 1).single();
         const { data: holidaysData } = await supabase.from('holidays').select('*').gte('holiday_date', startDate).lte('holiday_date', endDate);
 
         const { data: logs } = await supabase
@@ -165,10 +163,12 @@ export default function DashboardPage() {
           .lte('log_date', endDate)
           .order('log_date', { ascending: true });
 
+        const leavesResponse = await fetch(ROUTES.API.LEAVES);
+        const leavesResult = leavesResponse.ok ? await leavesResponse.json() : null;
+
         setRawLogs(logs || []);
-        setShifts(shiftsData || []);
-        setOtSetting(settingData?.ot_in_end || '18:30');
         setHolidays(holidaysData || []);
+        setPendingLeaves((leavesResult?.data || []).filter((leave: any) => leave.status === 'Pending'));
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -178,6 +178,28 @@ export default function DashboardPage() {
 
     fetchDashboardData();
   }, [dateRangeType, customStart, customEnd]);
+
+  const taskSummary = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const todayLogs = rawLogs.filter(log => log.log_date === today);
+    const missingPunches = todayLogs.filter(log =>
+      (log.time_in_1 && !log.time_out_1) || (log.time_in_2 && !log.time_out_2)
+    ).length;
+    const activeEmployeeIds = new Set(rawEmployees.filter(employee => employee.status === 'Active').map(employee => employee.id));
+    const checkedInIds = new Set(todayLogs.filter(log => log.time_in_1 || log.time_in_2).map(log => log.employee_id));
+    const pendingOT = todayLogs.filter(log => {
+      const otIn = timeToHours(log.time_in_3);
+      const otOut = timeToHours(log.time_out_3);
+      return otIn > 0 && otOut > otIn && log.ot_approved !== true;
+    }).length;
+
+    return {
+      missingPunches,
+      pendingLeaves: pendingLeaves.length,
+      noCheckIn: [...activeEmployeeIds].filter(id => !checkedInIds.has(id)).length,
+      pendingOT,
+    };
+  }, [rawLogs, rawEmployees, pendingLeaves]);
 
   // 2. กรองพนักงาน (ตาม Search, Dept, Status)
   const processedEmployees = useMemo(() => {
@@ -259,9 +281,6 @@ export default function DashboardPage() {
       let leaveDays = 0;
       let totalOT = 0;
 
-      const empShift = shifts.find(s => s.id === emp.shift_id);
-      const otSettingStart = timeToHours(empShift?.ot_start_time || otSetting);
-
       // We need to loop over dates to handle "Paid Holidays" logic
       dateArray.forEach(dateStr => {
         const log = empLogs.find(l => l.log_date === dateStr);
@@ -274,21 +293,12 @@ export default function DashboardPage() {
           if (hasTimeIn) presentDays++;
           else if (isL) leaveDays++;
 
-          // Calculate OT
-          const in1 = timeToHours(log.time_in_1); const out1 = timeToHours(log.time_out_1);
-          const in2 = timeToHours(log.time_in_2); const out2 = timeToHours(log.time_out_2);
+          // Count only dedicated OT records; normal clock-out times never create OT automatically.
           const in3 = timeToHours(log.time_in_3); const out3 = timeToHours(log.time_out_3);
-          const in4 = timeToHours(log.time_in_4); const out4 = timeToHours(log.time_out_4);
-          
-          const pairs = [[in1, out1], [in2, out2], [in3, out3], [in4, out4]];
-          pairs.forEach(([tIn, tOut]) => {
-            if (tIn > 0 && tOut > 0 && tOut > otSettingStart) {
-              const actualOtStart = Math.max(tIn, otSettingStart);
-              if (tOut > actualOtStart) {
-                totalOT += (tOut - actualOtStart);
-              }
-            }
-          });
+          if (log.ot_approved === true) {
+            if (log.time_in_3 === 'OT') totalOT += Number(log.time_out_3) || 0;
+            else if (in3 > 0 && out3 > in3) totalOT += out3 - in3;
+          }
         } else if (isHoliday) {
           // If no log but it's a holiday, count as a "Paid Work Day" logically
           // Depending on rules, maybe it's added to presentDays to show they get paid
@@ -298,7 +308,7 @@ export default function DashboardPage() {
 
       return { ...emp, todayStatus, isMissingPunch: isMissing, isLeave, presentDays, leaveDays, totalOT };
     });
-  }, [processedEmployees, rawLogs, dateRangeType, customStart, customEnd, shifts, otSetting, holidays]);
+  }, [processedEmployees, rawLogs, dateRangeType, customStart, customEnd, holidays]);
 
 
   // 4. คำนวณ Chart และ Stats จากพนักงานที่ผ่านการกรองแล้ว (ทำให้กราฟแสดงเฉพาะคนที่ค้นหาได้)
@@ -453,7 +463,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/live" target="_blank" rel="noreferrer" className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl transition flex items-center gap-2">
+            <a href={ROUTES.LIVE} target="_blank" rel="noreferrer" className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl transition flex items-center gap-2">
               <Eye className="w-4 h-4" /> ดูหน้าจอนำเสนอ
             </a>
             <button onClick={stopPresentation} className="px-4 py-2 bg-white text-emerald-600 hover:bg-slate-50 font-bold rounded-xl transition shadow-sm flex items-center gap-2">
@@ -512,13 +522,79 @@ export default function DashboardPage() {
             </div>
           )}
 
+          <div className="w-px h-8 bg-slate-200 dark:bg-slate-800 mx-1 hidden lg:block"></div>
+
+          <div className="flex items-center gap-2 px-2">
+            <Building2 className="w-4 h-4 text-[var(--apple-text-secondary)]" />
+            <select
+              aria-label="กรองตามแผนก"
+              value={filterDept}
+              onChange={(e) => {
+                setFilterDept(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="max-w-40 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--apple-text-primary)] font-bold rounded-[980px] outline-none focus:ring-2 focus:ring-apple-blue cursor-pointer text-sm"
+            >
+              <option value="All">ทุกแผนก</option>
+              {departments.map(department => (
+                <option key={department.id} value={department.name_th}>{department.name_th}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
 
-          <Link href="/attendance" className="px-5 py-2 bg-apple-blue text-white font-bold rounded-[980px] hover:opacity-90 shadow-sm transition flex items-center">
+          <Link href={ROUTES.ATTENDANCE} className="px-5 py-2 bg-apple-blue text-white font-bold rounded-[980px] hover:opacity-90 shadow-sm transition flex items-center">
             <Clock className="w-4 h-4 mr-2" /> บันทึกเวลา
           </Link>
         </div>
       </div>
+
+      {/* Work queue */}
+      <section className="mb-6 rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-black/20 p-4 shadow-[var(--shadow-apple-soft)]">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="rounded-xl bg-amber-100 p-2 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"><ClipboardCheck className="h-5 w-5" /></div>
+            <div>
+              <h2 className="font-extrabold text-[var(--apple-text-primary)]">งานที่ต้องจัดการ</h2>
+              <p className="text-sm text-[var(--apple-text-secondary)]">รายการสำคัญสำหรับวันนี้</p>
+            </div>
+          </div>
+          <Link href={ROUTES.ATTENDANCE} className="hidden items-center gap-1 text-sm font-bold text-apple-blue hover:underline sm:flex">ดูรายการทั้งหมด <ArrowUpRight className="h-4 w-4" /></Link>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <Link href={ROUTES.ATTENDANCE} className="group flex items-center justify-between rounded-2xl border border-amber-100 bg-amber-50/70 p-4 hover:-translate-y-0.5 hover:border-amber-200 dark:border-amber-500/20 dark:bg-amber-500/5">
+            <div><p className="text-sm font-bold text-amber-800 dark:text-amber-300">ลืมลงเวลาออก</p><p className="mt-1 text-sm text-amber-700/80 dark:text-amber-200/70">ตรวจสอบบันทึกเวลาไม่ครบ</p></div>
+            <div className="flex items-center gap-2"><strong className="text-3xl text-amber-700 dark:text-amber-300">{taskSummary.missingPunches}</strong><ArrowUpRight className="h-4 w-4 text-amber-600" /></div>
+          </Link>
+          <Link href={ROUTES.LEAVES} className="group flex items-center justify-between rounded-2xl border border-rose-100 bg-rose-50/70 p-4 hover:-translate-y-0.5 hover:border-rose-200 dark:border-rose-500/20 dark:bg-rose-500/5">
+            <div><p className="text-sm font-bold text-rose-800 dark:text-rose-300">คำขอลารออนุมัติ</p><p className="mt-1 text-sm text-rose-700/80 dark:text-rose-200/70">พิจารณาและอัปเดตสถานะ</p></div>
+            <div className="flex items-center gap-2"><strong className="text-3xl text-rose-700 dark:text-rose-300">{taskSummary.pendingLeaves}</strong><ArrowUpRight className="h-4 w-4 text-rose-600" /></div>
+          </Link>
+          <Link href={ROUTES.ATTENDANCE} className="group flex items-center justify-between rounded-2xl border border-sky-100 bg-sky-50/70 p-4 hover:-translate-y-0.5 hover:border-sky-200 dark:border-sky-500/20 dark:bg-sky-500/5">
+            <div><p className="text-sm font-bold text-sky-800 dark:text-sky-300">ยังไม่พบการลงเวลา</p><p className="mt-1 text-sm text-sky-700/80 dark:text-sky-200/70">พนักงานที่ยังไม่มีเวลาเข้า</p></div>
+            <div className="flex items-center gap-2"><strong className="text-3xl text-sky-700 dark:text-sky-300">{taskSummary.noCheckIn}</strong><ArrowUpRight className="h-4 w-4 text-sky-600" /></div>
+          </Link>
+          <Link href={ROUTES.ATTENDANCE} className="group flex items-center justify-between rounded-2xl border border-orange-100 bg-orange-50/70 p-4 hover:-translate-y-0.5 hover:border-orange-200 dark:border-orange-500/20 dark:bg-orange-500/5">
+            <div><p className="text-sm font-bold text-orange-800 dark:text-orange-300">OT รออนุมัติ</p><p className="mt-1 text-sm text-orange-700/80 dark:text-orange-200/70">ตรวจสอบก่อนนำไปคิดค่าแรง</p></div>
+            <div className="flex items-center gap-2"><strong className="text-3xl text-orange-700 dark:text-orange-300">{taskSummary.pendingOT}</strong><ArrowUpRight className="h-4 w-4 text-orange-600" /></div>
+          </Link>
+        </div>
+      </section>
+
+      {/* Quick actions */}
+      <section className="mb-6 rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-black/20 p-4 shadow-[var(--shadow-apple-soft)]">
+        <div className="mb-3 flex items-center gap-2">
+          <div className="rounded-xl bg-apple-blue/10 p-2 text-apple-blue"><SlidersHorizontal className="h-5 w-5" /></div>
+          <div><h2 className="font-extrabold text-[var(--apple-text-primary)]">เมนูลัด</h2><p className="text-sm text-[var(--apple-text-secondary)]">เริ่มงานที่ใช้บ่อยได้ทันที</p></div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Link href={ROUTES.ATTENDANCE} className="flex min-h-24 flex-col justify-between rounded-2xl bg-apple-blue p-4 text-white shadow-sm hover:-translate-y-0.5 hover:opacity-90"><Clock className="h-6 w-6" /><span className="font-bold">ลงเวลา</span></Link>
+          <Link href={ROUTES.EMPLOYEES} className="flex min-h-24 flex-col justify-between rounded-2xl bg-indigo-600 p-4 text-white shadow-sm hover:-translate-y-0.5 hover:opacity-90"><Plus className="h-6 w-6" /><span className="font-bold">เพิ่มพนักงาน</span></Link>
+          <button onClick={() => Swal.fire({ icon: 'info', title: 'รับสินค้า', text: 'เมนูรับสินค้าจะพร้อมใช้งานในโมดูลคลังสินค้า' })} className="flex min-h-24 flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left text-slate-700 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-emerald-500/10"><PackageCheck className="h-6 w-6 text-emerald-600" /><span className="font-bold">รับสินค้า <small className="ml-1 font-medium text-slate-400">เร็ว ๆ นี้</small></span></button>
+          <button onClick={() => Swal.fire({ icon: 'info', title: 'สร้างใบเบิก', text: 'เมนูสร้างใบเบิกจะพร้อมใช้งานในโมดูลคลังสินค้า' })} className="flex min-h-24 flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left text-slate-700 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-violet-500/10"><FilePlus2 className="h-6 w-6 text-violet-600" /><span className="font-bold">สร้างใบเบิก <small className="ml-1 font-medium text-slate-400">เร็ว ๆ นี้</small></span></button>
+        </div>
+      </section>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-1">
@@ -534,7 +610,7 @@ export default function DashboardPage() {
           className={`px-4 py-2.5 font-bold text-sm rounded-t-[12px] transition flex items-center gap-2 whitespace-nowrap
             ${activeTab === 'symbol' ? 'text-[var(--apple-text-primary)] border-b-[3px] border-apple-blue' : 'text-[var(--apple-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'}`}
         >
-          <BarChart3 className="w-4 h-4" /> รายงานแบบสัญลักษณ์
+          <BarChart3 className="w-4 h-4" /> รายงานแบบเวลา
         </button>
         <button 
           onClick={() => setActiveTab('detailed')}
@@ -590,15 +666,7 @@ export default function DashboardPage() {
           </div>
 
           {/* 🌟 Executive Chart Section */}
-          <div className="mb-8 relative">
-            <div className="absolute top-4 right-4 z-10 flex gap-2">
-              <button 
-                onClick={() => startPresentation('executive', 'วิเคราะห์พฤติกรรมการลงเวลา', { chartData, dateRangeType, customStart, customEnd })}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition"
-              >
-                <Cast className="w-3 h-3" /> นำเสนอกราฟนี้
-              </button>
-            </div>
+          <div className="mb-8">
             <ExecutiveChart 
               title={`วิเคราะห์พฤติกรรมการลงเวลา (${dateRangeType === 'today' ? 'วันนี้' : dateRangeType === 'week' ? '7 วันล่าสุด' : dateRangeType === 'month' ? '30 วันล่าสุด' : `${customStart} ถึง ${customEnd}`})`}
               data={chartData} 
@@ -610,6 +678,27 @@ export default function DashboardPage() {
                 { key: 'absent', name: 'หยุด / ขาดงาน', color: '#94a3b8' } // Slate
               ]}
               onDataClick={handleChartClick}
+              headerAction={
+                <div className="flex items-center gap-2">
+                  {searchTerm && (
+                    <button 
+                      onClick={() => {
+                        setSearchTerm('');
+                        setCurrentPage(1);
+                      }}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition"
+                    >
+                      <X className="w-3 h-3" /> กลับไปดูภาพรวมทั้งหมด
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => startPresentation('executive', 'วิเคราะห์พฤติกรรมการลงเวลา', { chartData, dateRangeType, customStart, customEnd })}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition"
+                  >
+                    <Cast className="w-3 h-3" /> นำเสนอกราฟนี้
+                  </button>
+                </div>
+              }
             />
           </div>
 
@@ -626,14 +715,26 @@ export default function DashboardPage() {
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-[var(--apple-text-secondary)]"><Search className="w-4 h-4 absolute left-3 top-2.5" /></span>
                   <input 
                     type="text" 
-                    placeholder="ค้นหารหัส, ชื่อ..." 
+                    placeholder="ค้นหาชื่อ, รหัสพนักงาน..." 
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="w-full pl-9 pr-4 py-1.5 bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-[980px] outline-none text-sm font-medium focus:border-apple-blue focus:ring-1 focus:ring-apple-blue transition"
+                    className="w-full pl-9 pr-8 py-1.5 bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-[980px] outline-none text-sm font-medium focus:border-apple-blue focus:ring-1 focus:ring-apple-blue transition"
                   />
+                  {searchTerm && (
+                    <button 
+                      onClick={() => {
+                        setSearchTerm('');
+                        setCurrentPage(1);
+                      }}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+                      title="ล้างการค้นหา (กลับไปดูทั้งหมด)"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 

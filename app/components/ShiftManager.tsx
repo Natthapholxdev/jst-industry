@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
+import { ROUTES } from '@/lib/routes';
 
 export default function ShiftManager() {
   const [shifts, setShifts] = useState<any[]>([]);
@@ -12,7 +13,7 @@ export default function ShiftManager() {
   }, []);
 
   const fetchShifts = async () => {
-    const res = await fetch('/api/shifts');
+    const res = await fetch(ROUTES.API.SHIFTS);
     const data = await res.json();
     if (data.success) setShifts(data.data);
   };
@@ -22,7 +23,7 @@ export default function ShiftManager() {
     const method = editingId ? 'PUT' : 'POST';
     const payload = editingId ? { id: editingId, ...formData } : formData;
 
-    const res = await fetch('/api/shifts', {
+    const res = await fetch(ROUTES.API.SHIFTS, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

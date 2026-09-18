@@ -80,67 +80,29 @@ export async function POST(request: Request) {
             return h + (m / 60);
           };
 
-          const buckets = { E0: [] as string[], E1: [] as string[], E2: [] as string[], E3: [] as string[], E4: [] as string[], E5: [] as string[] };
+          const buckets = { Morning: [] as string[], Lunch: [] as string[], Evening: [] as string[], OT: [] as string[] };
           
           rawTimes.forEach((t: string) => {
             const val = timeToHours(t);
-            // 08:00 - 12:00 Morning, 13:00 - 17:00 Afternoon, 18:00+ OT
-            if (val < 10.5) buckets.E0.push(t); // Morning In (Target 08:00)
-            else if (val < 12.5) buckets.E1.push(t); // Morning Out (Target 12:00)
-            else if (val < 14.5) buckets.E2.push(t); // Afternoon In (Target 13:00)
-            else if (val < 17.5) buckets.E3.push(t); // Afternoon Out (Target 17:00)
-            else if (val < 18.5) buckets.E4.push(t); // OT In (Target 18:00)
-            else buckets.E5.push(t); // OT Out
+            if (val < 10.5) buckets.Morning.push(t);
+            else if (val >= 10.5 && val < 14.5) buckets.Lunch.push(t);
+            else if (val >= 14.5 && val < 17.75) buckets.Evening.push(t); // up to 17:45
+            else buckets.OT.push(t);
           });
 
-          let time_in_1 = buckets.E0.length > 0 ? buckets.E0[0] : null;
-          let time_out_1 = buckets.E1.length > 0 ? buckets.E1[buckets.E1.length - 1] : null;
-          let time_in_2 = buckets.E2.length > 0 ? buckets.E2[0] : null;
-          let time_out_2 = buckets.E3.length > 0 ? buckets.E3[buckets.E3.length - 1] : null;
-          let time_in_3 = buckets.E4.length > 0 ? buckets.E4[0] : null;
-          let time_out_3 = buckets.E5.length > 0 ? buckets.E5[buckets.E5.length - 1] : null;
+          let time_in_1 = buckets.Morning.length > 0 ? buckets.Morning[0] : null;
+          let time_out_1 = buckets.Lunch.length > 0 ? buckets.Lunch[0] : null;
+          let time_in_2 = buckets.Lunch.length >= 2 ? buckets.Lunch[buckets.Lunch.length - 1] : null;
+          let time_out_2 = buckets.Evening.length > 0 ? buckets.Evening[buckets.Evening.length - 1] : null;
+          let time_in_3 = buckets.OT.length > 0 ? buckets.OT[0] : null;
+          let time_out_3 = buckets.OT.length >= 2 ? buckets.OT[buckets.OT.length - 1] : null;
           let time_in_4 = null;
           let time_out_4 = null;
 
-          // Fixup logic to maintain contiguous pairs for OT calculation
-          // If a scan falls into OT In, but there is no OT Out, it's actually their final Out scan!
+          // Fix trailing IN scan for OT
           if (time_in_3 && !time_out_3) {
              time_out_3 = time_in_3;
              time_in_3 = null;
-          }
-          
-          // If they have an Out scan but the corresponding In scan is missing, 
-          // we shift the Out scan back to complete the previous pair if possible.
-          if (time_out_3 && !time_in_3) {
-            if (time_out_2) {
-              // Both out2 and out3 exist, but in3 is missing.
-              // Example: [17:00, 19:25]. 17:00 is out2, 19:25 is out3.
-              // Just replace out2 with out3 so their shift ends at 19:25!
-              time_out_2 = time_out_3;
-              time_out_3 = null;
-            } else if (time_in_2) {
-              // out2 is missing, but in2 exists.
-              // Just move out3 to out2.
-              time_out_2 = time_out_3;
-              time_out_3 = null;
-            } else if (time_out_1) {
-              // in2 and out2 are missing.
-              time_out_1 = time_out_3;
-              time_out_3 = null;
-            } else if (time_in_1) {
-              time_out_1 = time_out_3;
-              time_out_3 = null;
-            }
-          }
-          
-          if (time_out_2 && !time_in_2) {
-            if (time_out_1) {
-              time_out_1 = time_out_2;
-              time_out_2 = null;
-            } else if (time_in_1) {
-              time_out_1 = time_out_2;
-              time_out_2 = null;
-            }
           }
 
           // 🌟 ซ่อมแซมวันที่ (ในไทยส่วนใหญ่ใช้ DD/MM/YYYY)

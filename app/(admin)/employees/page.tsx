@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
 import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, UserX, UserSearch, Printer } from 'lucide-react';
 import ThaiDatePicker from '@/components/ThaiDatePicker';
+import { ROUTES } from '@/lib/routes';
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -177,13 +178,13 @@ export default function EmployeesPage() {
 
       let res;
       if (isEditing) {
-        res = await fetch('/api/employees', {
+        res = await fetch(ROUTES.API.EMPLOYEES, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...payload, id: formData.id })
         });
       } else {
-        res = await fetch('/api/employees', {
+        res = await fetch(ROUTES.API.EMPLOYEES, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -313,7 +314,7 @@ export default function EmployeesPage() {
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-[var(--apple-text-primary)] flex items-center gap-3">
-            <Link href="/dashboard" className="text-[var(--apple-text-secondary)] hover:text-apple-blue transition">&larr;</Link>
+            <Link href={ROUTES.DASHBOARD} className="text-[var(--apple-text-secondary)] hover:text-apple-blue transition">&larr;</Link>
             จัดการฐานข้อมูลพนักงาน
           </h1>
           <p className="text-[var(--apple-text-secondary)] mt-1 ml-10 font-medium">ระบบจัดเก็บแฟ้มประวัติ และ ข้อมูลพนักงานแบบดิจิทัล</p>

@@ -64,6 +64,7 @@ export async function GET(request: Request) {
         remark: log?.remark || "",
         pay_multiplier: log?.pay_multiplier ?? defaultMultiplier,
         ot_multiplier: log?.ot_multiplier ?? 1.0,
+        ot_approved: log?.ot_approved ?? false,
         extra_add: log?.extra_add ?? 0,
         extra_deduct: log?.extra_deduct ?? 0,
         is_holiday: !!holiday,
@@ -115,6 +116,7 @@ export async function POST(request: Request) {
       "remark",
       "pay_multiplier",
       "ot_multiplier",
+      "ot_approved",
       "extra_add",
       "extra_deduct"
     ];
@@ -158,6 +160,7 @@ export async function POST(request: Request) {
         remark: rec.remark || null,
         pay_multiplier: rec.pay_multiplier !== undefined ? Number(rec.pay_multiplier) : 1.0,
         ot_multiplier: rec.ot_multiplier !== undefined ? Number(rec.ot_multiplier) : 1.0,
+        ot_approved: rec.ot_approved === true,
         extra_add: rec.extra_add !== undefined ? Number(rec.extra_add) : 0,
         extra_deduct: rec.extra_deduct !== undefined ? Number(rec.extra_deduct) : 0
       };

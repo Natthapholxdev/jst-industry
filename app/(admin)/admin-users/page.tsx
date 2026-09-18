@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { UserPlus, UserX, UserCog, Key } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { logAdminAction } from '@/lib/auditLog';
+import { ROUTES } from '@/lib/routes';
 
 export default function AdminUsersPage() {
   const [admins, setAdmins] = useState<any[]>([]);
@@ -16,7 +17,7 @@ export default function AdminUsersPage() {
   const fetchAdmins = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/admins');
+      const res = await fetch(ROUTES.API.ADMINS);
       const data = await res.json();
       if (data.success) {
         setAdmins(data.data);
@@ -43,7 +44,7 @@ export default function AdminUsersPage() {
     }
 
     try {
-      const res = await fetch('/api/admins', {
+      const res = await fetch(ROUTES.API.ADMINS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -90,7 +91,7 @@ export default function AdminUsersPage() {
 
     if (result.isConfirmed) {
       try {
-        const res = await fetch('/api/admins', {
+        const res = await fetch(ROUTES.API.ADMINS, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: admin.id }),

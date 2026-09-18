@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { LayoutDashboard, CheckCircle, XCircle, Clock, Plus, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { supabase } from '@/lib/supabase';
+import { ROUTES } from '@/lib/routes';
 
 export default function AdminLeavesPage() {
   const [leaves, setLeaves] = useState<any[]>([]);
@@ -24,7 +25,7 @@ export default function AdminLeavesPage() {
   const fetchLeaves = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/leaves');
+      const res = await fetch(ROUTES.API.LEAVES);
       const data = await res.json();
       if (data.success) {
         setLeaves(data.data);
@@ -47,7 +48,7 @@ export default function AdminLeavesPage() {
   }, []);
 
   const updateStatus = async (id: number, status: string) => {
-    const res = await fetch('/api/leaves', {
+    const res = await fetch(ROUTES.API.LEAVES, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status })
@@ -66,7 +67,7 @@ export default function AdminLeavesPage() {
     
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/leaves', {
+      const res = await fetch(ROUTES.API.LEAVES, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // แอดมินบันทึกเอง ให้อนุมัติอัตโนมัติเลย
@@ -92,7 +93,7 @@ export default function AdminLeavesPage() {
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white flex items-center gap-3">
-            <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 dark:text-slate-300 transition">&larr;</Link>
+            <Link href={ROUTES.DASHBOARD} className="text-slate-400 hover:text-slate-600 dark:text-slate-300 transition">&larr;</Link>
             ระบบจัดการการลางาน
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 ml-10 font-medium">บันทึก อนุมัติ หรือปฏิเสธคำขอการลางานของพนักงาน</p>

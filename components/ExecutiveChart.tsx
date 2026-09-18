@@ -13,9 +13,10 @@ interface ExecutiveChartProps {
   xKey: string;
   series: { key: string; name: string; color: string }[];
   onDataClick?: (date: string, key: string) => void;
+  headerAction?: React.ReactNode;
 }
 
-export default function ExecutiveChart({ title, data, xKey, series, onDataClick }: ExecutiveChartProps) {
+export default function ExecutiveChart({ title, data, xKey, series, onDataClick, headerAction }: ExecutiveChartProps) {
   const [viewMode, setViewMode] = useState<'bar' | 'line' | 'table'>('bar');
 
   return (
@@ -31,28 +32,31 @@ export default function ExecutiveChart({ title, data, xKey, series, onDataClick 
              </p>
           )}
         </div>
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => setViewMode('bar')}
-            className={`p-1.5 rounded-md transition ${viewMode === 'bar' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-            title="Bar Chart"
-          >
-            <BarChart3 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('line')}
-            className={`p-1.5 rounded-md transition ${viewMode === 'line' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-            title="Line Chart"
-          >
-            <TrendingUp className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('table')}
-            className={`p-1.5 rounded-md transition ${viewMode === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-            title="Data Table"
-          >
-            <TableIcon className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-2">
+          {headerAction && <div>{headerAction}</div>}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setViewMode('bar')}
+              className={`p-1.5 rounded-md transition ${viewMode === 'bar' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              title="Bar Chart"
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('line')}
+              className={`p-1.5 rounded-md transition ${viewMode === 'line' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              title="Line Chart"
+            >
+              <TrendingUp className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-1.5 rounded-md transition ${viewMode === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              title="Data Table"
+            >
+              <TableIcon className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 

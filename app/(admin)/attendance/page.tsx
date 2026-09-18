@@ -1,11 +1,12 @@
 "use client";
 import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, Printer } from 'lucide-react';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import FileUpload from "@/components/FileUpload";
 import ThaiDatePicker from "@/components/ThaiDatePicker";
 import Swal from "sweetalert2";
+import { ROUTES } from '@/lib/routes';
 
 // Component ผสมผสานป้ายแสดงผล + ช่องพิมพ์เวลา (เอา disabled ออกไปเลย เพื่อให้แก้ได้อิสระ)
 const ThaiTimeInput = ({
@@ -65,6 +66,17 @@ export default function AttendancePage() {
   const [isHoliday, setIsHoliday] = useState(false);
   const [holidayInfo, setHolidayInfo] = useState<any>(null);
   const [showSpecialPayOnly, setShowSpecialPayOnly] = useState(false);
+  const [showAttentionOnly, setShowAttentionOnly] = useState(false);
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState({
+    ot: true,
+    remark: true,
+    pay: true,
+    otMultiplier: true,
+    otApproval: true,
+    extraAdd: true,
+    extraDeduct: true,
+  });
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
 
   // เช็คว่าวันที่เลือก เป็นอดีตหรือไม่
@@ -99,7 +111,26 @@ export default function AttendancePage() {
     fetchRecords(selectedDate);
   }, [selectedDate]);
 
-  const handleInputChange = (empId: string | number, field: string, value: string) => {
+  useEffect(() => {
+    const savedColumns = localStorage.getItem('attendance-visible-columns');
+    if (savedColumns) {
+      try {
+        setVisibleColumns(previous => ({ ...previous, ...JSON.parse(savedColumns) }));
+      } catch {
+        localStorage.removeItem('attendance-visible-columns');
+      }
+    }
+  }, []);
+
+  const toggleColumn = (column: keyof typeof visibleColumns) => {
+    setVisibleColumns(previous => {
+      const next = { ...previous, [column]: !previous[column] };
+      localStorage.setItem('attendance-visible-columns', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleInputChange = (empId: string | number, field: string, value: string | boolean) => {
     setRecords(records.map((rec) =>
       rec.id === empId ? { ...rec, [field]: value, is_edited: true } : rec
     ));
@@ -118,6 +149,26 @@ export default function AttendancePage() {
     return true;
   };
 
+  const hasMissingPunch = (rec: any) =>
+    (rec.time_in_1 && !rec.time_out_1) ||
+    (rec.time_in_2 && !rec.time_out_2) ||
+    (rec.time_in_3 && !rec.time_out_3);
+
+  const hasRecordedOT = (rec: any) => {
+    if (!rec.time_in_3 || !rec.time_out_3 || rec.time_in_3 === 'OT') return false;
+    const toMinutes = (time: string) => {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+    return toMinutes(rec.time_out_3) > toMinutes(rec.time_in_3);
+  };
+
+  const alertSummary = useMemo(() => ({
+    invalidTimes: records.filter(record => !validateTimes(record)).length,
+    missingPunches: records.filter(hasMissingPunch).length,
+    pendingOT: records.filter(record => hasRecordedOT(record) && record.ot_approved !== true).length,
+  }), [records]);
+
   const handleSave = async () => {
     // ใช้ records ทั้งหมดในการเช็คและบันทึก เพื่อให้กดบันทึกได้ตลอด
     const recordsToSave = records;
@@ -127,7 +178,7 @@ export default function AttendancePage() {
     }
 
     const invalidRecord = recordsToSave.find((rec) => !validateTimes(rec));
-    const missingPunchRecord = recordsToSave.find((rec) => (rec.time_in_1 && !rec.time_out_1) || (rec.time_in_2 && !rec.time_out_2));
+    const missingPunchRecord = recordsToSave.find(hasMissingPunch);
     
     let warningHtml = "";
     if (invalidRecord) {
@@ -185,10 +236,8 @@ export default function AttendancePage() {
   };
 
   const filteredRecords = records.filter(emp => {
-    if (showSpecialPayOnly) {
-      return Number(emp.pay_multiplier) > 1.0;
-    }
-    return true;
+    const hasAttention = !validateTimes(emp) || hasMissingPunch(emp) || (hasRecordedOT(emp) && emp.ot_approved !== true);
+    return (!showSpecialPayOnly || Number(emp.pay_multiplier) > 1.0) && (!showAttentionOnly || hasAttention);
   });
 
   return (
@@ -196,13 +245,13 @@ export default function AttendancePage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 print:hidden">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            <Link href="/dashboard" className="text-slate-400 hover:text-indigo-600 dark:text-indigo-400 transition">&larr;</Link>
+            <Link href={ROUTES.DASHBOARD} className="text-slate-400 hover:text-indigo-600 dark:text-indigo-400 transition">&larr;</Link>
             จัดการเวลาเข้า-ออก และ OT
           </h1>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <Link href="/attendance-person" className="px-3 py-2 rounded-lg font-bold text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-sm flex items-center gap-2">
+          <Link href={ROUTES.ATTENDANCE_PERSON} className="px-3 py-2 rounded-lg font-bold text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-sm flex items-center gap-2">
             <User className="w-4 h-4" /> ดูรายบุคคล
           </Link>
           <button 
@@ -217,6 +266,13 @@ export default function AttendancePage() {
           >
             <Flame className="w-4 h-4" /> 
             {showSpecialPayOnly ? 'แสดงทั้งหมด' : 'ดูเฉพาะได้ค่าแรงพิเศษ'}
+          </button>
+          <button
+            onClick={() => setShowAttentionOnly(!showAttentionOnly)}
+            className={`px-3 py-2 rounded-lg font-bold text-sm border transition shadow-sm flex items-center gap-2 ${showAttentionOnly ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300'}`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            {showAttentionOnly ? 'แสดงทั้งหมด' : 'ดูเฉพาะที่ต้องตรวจ'}
           </button>
           <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 rounded-lg overflow-hidden shadow-sm">
             <span className="px-3 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 h-full flex items-center">วันที่</span>
@@ -250,11 +306,52 @@ export default function AttendancePage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden print:border-none print:shadow-none">
+      {!isLoading && (
+        <section className="mb-4 grid gap-3 sm:grid-cols-3 print:hidden" aria-label="สรุปรายการที่ต้องตรวจสอบ">
+          <button onClick={() => setShowAttentionOnly(true)} className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-left hover:border-rose-300 dark:border-rose-500/30 dark:bg-rose-500/10">
+            <div className="flex items-center justify-between gap-2"><span className="text-sm font-bold text-rose-800 dark:text-rose-300">เวลาออกก่อนเวลาเข้า</span><AlertTriangle className="h-5 w-5 text-rose-600" /></div>
+            <p className="mt-1 text-2xl font-extrabold text-rose-700 dark:text-rose-300">{alertSummary.invalidTimes} <span className="text-sm font-semibold">รายการ</span></p>
+          </button>
+          <button onClick={() => setShowAttentionOnly(true)} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-left hover:border-amber-300 dark:border-amber-500/30 dark:bg-amber-500/10">
+            <div className="flex items-center justify-between gap-2"><span className="text-sm font-bold text-amber-800 dark:text-amber-300">สแกนเวลาไม่ครบ</span><Clock className="h-5 w-5 text-amber-600" /></div>
+            <p className="mt-1 text-2xl font-extrabold text-amber-700 dark:text-amber-300">{alertSummary.missingPunches} <span className="text-sm font-semibold">รายการ</span></p>
+          </button>
+          <button onClick={() => setShowAttentionOnly(true)} className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-left hover:border-orange-300 dark:border-orange-500/30 dark:bg-orange-500/10">
+            <div className="flex items-center justify-between gap-2"><span className="text-sm font-bold text-orange-800 dark:text-orange-300">OT รออนุมัติ</span><CheckCircle className="h-5 w-5 text-orange-600" /></div>
+            <p className="mt-1 text-2xl font-extrabold text-orange-700 dark:text-orange-300">{alertSummary.pendingOT} <span className="text-sm font-semibold">รายการ</span></p>
+          </button>
+        </section>
+      )}
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden print:border-none print:shadow-none print:rounded-none print:overflow-visible">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center flex-wrap gap-4 print:hidden">
           <h2 className="font-bold text-slate-700 dark:text-slate-200">ข้อมูลประจำวันที่ {selectedDate}</h2>
           
           <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setShowColumnMenu(!showColumnMenu)}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 shadow-sm hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                aria-expanded={showColumnMenu}
+              >
+                <Settings className="h-4 w-4" /> คอลัมน์
+              </button>
+              {showColumnMenu && (
+                <div className="absolute right-0 top-11 z-30 w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                  <p className="mb-2 text-xs font-bold text-slate-500">เลือกข้อมูลที่จะแสดง</p>
+                  {[
+                    ['ot', 'เวลา OT'], ['remark', 'หมายเหตุ'], ['pay', 'อัตราค่าแรง'],
+                    ['otMultiplier', 'ตัวคูณ OT'], ['otApproval', 'อนุมัติ OT'],
+                    ['extraAdd', 'เงินเพิ่ม'], ['extraDeduct', 'หักเงิน'],
+                  ].map(([key, label]) => (
+                    <label key={key} className="flex cursor-pointer items-center justify-between rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700">
+                      {label}
+                      <input type="checkbox" checked={visibleColumns[key as keyof typeof visibleColumns]} onChange={() => toggleColumn(key as keyof typeof visibleColumns)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
             {selectedEmpIds.length > 0 && (
               <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 animate-in fade-in zoom-in-95 shadow-sm">
                 <span className="text-sm font-bold text-indigo-700">เลือก {selectedEmpIds.length} รายการ:</span>
@@ -289,7 +386,7 @@ export default function AttendancePage() {
               th { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               .print\\:hidden { display: none !important; }
             `}</style>
-            <table className="min-w-full divide-y divide-slate-200 relative print:text-[11px] print:border-collapse">
+            <table className="min-w-[900px] w-full table-fixed divide-y divide-slate-200 relative print:text-[11px] print:border-collapse">
               <thead className="bg-slate-100 dark:bg-slate-800/50 sticky top-0 z-10 shadow-sm print:static print:shadow-none">
                 <tr>
                   <th className="px-4 py-3 print:px-1 print:py-1 text-left text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-0 z-20 print:static">
@@ -309,25 +406,26 @@ export default function AttendancePage() {
                       <span>รหัส</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3 print:px-1 print:py-1 text-left text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-16 z-20 print:static min-w-[110px] lg:min-w-[150px] print:min-w-0">ชื่อ-นามสกุล</th>
+                  <th className="w-48 px-4 py-3 print:px-1 print:py-1 text-left text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 sticky left-16 z-20 print:static min-w-[110px] lg:min-w-[150px] print:min-w-0">ชื่อ-นามสกุล</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าเช้า</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">ออกเที่ยง</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าบ่าย</th>
                   <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">เลิกงาน</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50">ออก OT</th>
-                  <th className="px-4 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">หมายเหตุ</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">อัตราค่าแรง</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">ตัวคูณ OT</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-emerald-700 bg-emerald-50/50 border-l border-emerald-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">เงินเพิ่ม (฿)</th>
-                  <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-rose-700 bg-rose-50/50 border-l border-rose-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">หักเงิน (฿)</th>
+                  {visibleColumns.ot && <><th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT</th><th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50">ออก OT</th></>}
+                  {visibleColumns.remark && <th className="w-44 px-4 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">หมายเหตุ</th>}
+                  {visibleColumns.pay && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">อัตราค่าแรง</th>}
+                  {visibleColumns.otMultiplier && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">ตัวคูณ OT</th>}
+                  {visibleColumns.otApproval && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-50/50 border-l border-orange-200 min-w-[90px] print:min-w-0">อนุมัติ OT</th>}
+                  {visibleColumns.extraAdd && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-emerald-700 bg-emerald-50/50 border-l border-emerald-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">เงินเพิ่ม (฿)</th>}
+                  {visibleColumns.extraDeduct && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-rose-700 bg-rose-50/50 border-l border-rose-200 min-w-[85px] lg:min-w-[110px] print:min-w-0">หักเงิน (฿)</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white dark:bg-slate-800 print:divide-slate-300">
                 {filteredRecords.map((emp) => {
                   // เช็คว่าลงเวลาแหว่งไหม (เช่น เข้าแต่ไม่ออก)
-                  const isMissingPunch = (emp.time_in_1 && !emp.time_out_1) || 
-                                         (emp.time_in_2 && !emp.time_out_2);
+                  const isMissingPunch = hasMissingPunch(emp);
+                  const hasInvalidTime = !validateTimes(emp);
+                  const hasPendingOT = hasRecordedOT(emp) && emp.ot_approved !== true;
                   const isAbsent = !emp.time_in_1 && !emp.time_out_1 && !emp.time_in_2 && !emp.time_out_2 && !emp.remark;
 
                   return (
@@ -352,6 +450,8 @@ export default function AttendancePage() {
                       <td className="px-4 py-2 print:px-1 print:py-1 text-sm print:text-[10px] text-slate-700 dark:text-slate-200 whitespace-nowrap bg-white dark:bg-slate-800 print:bg-transparent sticky left-16 print:static">
                         {emp.full_name}
                         {isMissingPunch && <span className="ml-2 text-xs font-bold text-red-500 print:hidden">⚠️ ลืมสแกนออก</span>}
+                        {hasInvalidTime && <span className="ml-2 text-xs font-bold text-rose-600 print:hidden">⚠️ เวลาไม่ถูกต้อง</span>}
+                        {hasPendingOT && <span className="ml-2 text-xs font-bold text-orange-600 print:hidden">🕒 OT รออนุมัติ</span>}
                         {isAbsent && <span className="ml-2 text-xs font-bold text-slate-400 print:hidden">ยังไม่เข้างาน</span>}
                       </td>
 
@@ -369,7 +469,7 @@ export default function AttendancePage() {
                         </td>
                       ))}
 
-                      {["time_in_3", "time_out_3"].map((field, idx) => (
+                      {visibleColumns.ot && ["time_in_3", "time_out_3"].map((field, idx) => (
                         <td key={field} className={`px-1 py-2 print:px-0 print:py-1 text-center bg-orange-50/20 print:bg-transparent ${idx === 0 ? 'border-l border-orange-100' : ''}`}>
                           <div className="print:hidden">
                             <ThaiTimeInput value={emp[field]} onChange={(val) => handleInputChange(emp.id, field, val)} theme="orange" />
@@ -378,7 +478,7 @@ export default function AttendancePage() {
                         </td>
                       ))}
 
-                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-slate-100 dark:border-slate-700/50">
+                      {visibleColumns.remark && <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-slate-100 dark:border-slate-700/50">
                         <input
                           type="text" placeholder="ระบุเหตุผล..."
                           className="w-full min-w-[120px] px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm bg-slate-50 dark:bg-slate-900 focus:bg-white dark:bg-slate-800 print:hidden"
@@ -386,9 +486,9 @@ export default function AttendancePage() {
                           onChange={(e) => handleInputChange(emp.id, "remark", e.target.value)}
                         />
                         <div className="hidden print:block text-[10px] truncate max-w-[100px]">{emp.remark || "-"}</div>
-                      </td>
+                      </td>}
 
-                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-indigo-100 bg-indigo-50/10 print:bg-transparent">
+                      {visibleColumns.pay && <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-indigo-100 bg-indigo-50/10 print:bg-transparent">
                         <select
                           value={emp.pay_multiplier || 1.0}
                           onChange={(e) => handleInputChange(emp.id, "pay_multiplier", e.target.value)}
@@ -401,9 +501,9 @@ export default function AttendancePage() {
                         {emp.is_weekly_day_off && !isHoliday && (
                           <div className="text-[9px] text-orange-600 font-bold mt-1 bg-orange-100 rounded-full px-1 print:hidden">วันหยุดสัปดาห์</div>
                         )}
-                      </td>
+                      </td>}
                       {/* ตัวคูณ OT */}
-                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-orange-100 bg-orange-50/10 print:bg-transparent">
+                      {visibleColumns.otMultiplier && <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-orange-100 bg-orange-50/10 print:bg-transparent">
                         <select
                           value={emp.ot_multiplier || 1.0}
                           onChange={(e) => handleInputChange(emp.id, "ot_multiplier", e.target.value)}
@@ -415,9 +515,21 @@ export default function AttendancePage() {
                           <option value="3.0">x3.0</option>
                         </select>
                         <div className="hidden print:block text-[10px]">{emp.ot_multiplier || "1"}</div>
-                      </td>
+                      </td>}
+                      {visibleColumns.otApproval && <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-orange-100 bg-orange-50/10 print:bg-transparent">
+                        <label className="inline-flex items-center gap-2 cursor-pointer print:hidden" title="อนุมัติ OT รายการนี้เพื่อนำไปคิดในรายงาน">
+                          <input
+                            type="checkbox"
+                            checked={emp.ot_approved === true}
+                            onChange={(e) => handleInputChange(emp.id, "ot_approved", e.target.checked)}
+                            className="h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-500"
+                          />
+                          <span className={`text-xs font-bold ${emp.ot_approved ? 'text-emerald-700' : 'text-slate-400'}`}>{emp.ot_approved ? 'อนุมัติแล้ว' : 'รออนุมัติ'}</span>
+                        </label>
+                        <div className="hidden print:block text-[10px]">{emp.ot_approved ? 'อนุมัติแล้ว' : '-'}</div>
+                      </td>}
                       {/* เงินเพิ่ม */}
-                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-emerald-100 bg-emerald-50/10 print:bg-transparent">
+                      {visibleColumns.extraAdd && <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-emerald-100 bg-emerald-50/10 print:bg-transparent">
                         <input
                           type="number"
                           placeholder="0"
@@ -426,9 +538,9 @@ export default function AttendancePage() {
                           className="w-full min-w-[60px] px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition shadow-sm bg-slate-50 text-slate-700 border-slate-200 print:hidden"
                         />
                         <div className="hidden print:block text-[10px]">{emp.extra_add || "-"}</div>
-                      </td>
+                      </td>}
                       {/* หักเงิน */}
-                      <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-rose-100 bg-rose-50/10 print:bg-transparent">
+                      {visibleColumns.extraDeduct && <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-rose-100 bg-rose-50/10 print:bg-transparent">
                         <input
                           type="number"
                           placeholder="0"
@@ -437,7 +549,7 @@ export default function AttendancePage() {
                           className="w-full min-w-[60px] px-2 py-1.5 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-rose-500 outline-none transition shadow-sm bg-slate-50 text-slate-700 border-slate-200 print:hidden"
                         />
                         <div className="hidden print:block text-[10px]">{emp.extra_deduct || "-"}</div>
-                      </td>
+                      </td>}
 
                     </tr>
                   );

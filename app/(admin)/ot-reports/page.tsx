@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import * as xlsx from 'xlsx';
 import { saveAs } from 'file-saver';
 import ThaiDatePicker from '@/components/ThaiDatePicker';
+import { ROUTES } from '@/lib/routes';
 
 export default function OTReportsPage() {
   const [startDate, setStartDate] = useState(() => {
@@ -140,14 +141,18 @@ export default function OTReportsPage() {
               const in3 = timeToHours(log.time_in_3);
               const out3 = timeToHours(log.time_out_3);
               
-              const pairs = [[in1, out1], [in2, out2], [in3, out3], [in4, out4]];
-              pairs.forEach(([tIn, tOut]) => {
-                if (tIn > 0 && tOut > 0) {
-                  if (tOut > otSettingStart) {
-                    const actualOtStart = Math.max(tIn, otSettingStart);
-                    if (tOut > actualOtStart) {
-                      dailyOT += (tOut - actualOtStart);
-                    }
+              const outs = [
+                { in: in1, out: out1 },
+                { in: in2, out: out2 },
+                { in: in3, out: out3 },
+                { in: in4, out: out4 }
+              ];
+              
+              outs.forEach(pair => {
+                if (pair.out > otSettingStart) {
+                  const actualOtStart = pair.in > 0 ? Math.max(pair.in, otSettingStart) : otSettingStart;
+                  if (pair.out > actualOtStart) {
+                    dailyOT += (pair.out - actualOtStart);
                   }
                 }
               });
@@ -258,7 +263,7 @@ export default function OTReportsPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 dark:text-slate-300 transition">&larr;</Link>
+            <Link href={ROUTES.DASHBOARD} className="text-slate-400 hover:text-slate-600 dark:text-slate-300 transition">&larr;</Link>
             รายงานสรุปค่าจ้างและโอที (Payroll & OT)
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 ml-10 font-medium">คำนวณค่าแรงรายวันและ OT อัตโนมัติ (สามารถเลือกช่วงตัดวีคได้ เช่น 1-15 หรือ 16-31)</p>

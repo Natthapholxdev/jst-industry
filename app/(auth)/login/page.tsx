@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { Building2, Lock, User, ArrowRight, ShieldCheck, CheckCircle2, Clock } from 'lucide-react';
+import { ROUTES } from '@/lib/routes';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function LoginPage() {
     try {
       const payload = { type: 'admin', username: username.trim(), password: password.trim() };
 
-      const res = await fetch('/api/auth', {
+      const res = await fetch(ROUTES.API.AUTH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -32,7 +33,7 @@ export default function LoginPage() {
       
       Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1500, showConfirmButton: false });
       
-      router.push('/dashboard');
+      router.push(ROUTES.DASHBOARD);
     } catch (error: any) {
       Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบไม่สำเร็จ', text: error.message });
     } finally {

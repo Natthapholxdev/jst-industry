@@ -7,6 +7,7 @@ import Swal from "sweetalert2";
 import { supabase } from "@/lib/supabase";
 import * as xlsx from 'xlsx';
 import { saveAs } from 'file-saver';
+import { ROUTES } from '@/lib/routes';
 
 const ThaiTimeInput = ({
   value,
@@ -72,7 +73,6 @@ export default function AttendancePersonPage() {
 
   const [employees, setEmployees] = useState<any[]>([]);
   const [shifts, setShifts] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>({});
   const [selectedEmpId, setSelectedEmpId] = useState<string>("");
   
   const [records, setRecords] = useState<any[]>([]);
@@ -102,9 +102,7 @@ export default function AttendancePersonPage() {
         .order('emp_code', { ascending: true });
         
       const { data: shiftsData } = await supabase.from('shifts').select('*');
-      const { data: settingsData } = await supabase.from('shift_settings').select('ot_in_end').eq('id', 1).single();
       
-      if (settingsData) setSettings(settingsData);
       if (shiftsData) setShifts(shiftsData);
       if (data) {
         setEmployees(data);
@@ -197,22 +195,13 @@ export default function AttendancePersonPage() {
         if (log?.time_in_3 === 'OT') {
           dailyOT += Number(log?.time_out_3) || 0;
         }
-        
-        const in1 = timeToHours(log?.time_in_1);
-        const out1 = timeToHours(log?.time_out_1);
-        const in2 = timeToHours(log?.time_in_2);
-        const out2 = timeToHours(log?.time_out_2);
-        const in3 = timeToHours(log?.time_in_3);
-        const out3 = timeToHours(log?.time_out_3);
-        
-        const otSettingStart = timeToHours(settings?.ot_in_end || empShift.ot_start_time);
-        const pairs = [[in1, out1], [in2, out2], [in3, out3]];
-        pairs.forEach(([tIn, tOut]) => {
-          if (tIn > 0 && tOut > 0 && tOut > otSettingStart && log?.time_in_3 !== 'OT') {
-            const actualOtStart = Math.max(tIn, otSettingStart);
-            if (tOut > actualOtStart) dailyOT += (tOut - actualOtStart);
-          }
-        });
+
+        // Calculate OT only from a valid dedicated OT in/out pair.
+        const otIn = timeToHours(log?.time_in_3);
+        const otOut = timeToHours(log?.time_out_3);
+        if (log?.time_in_3 !== 'OT' && otIn > 0 && otOut > otIn) {
+          dailyOT += otOut - otIn;
+        }
 
         return {
           log_date: dateStr,
@@ -236,7 +225,7 @@ export default function AttendancePersonPage() {
           holiday_name: holiday?.name || "",
           is_edited: false,
           is_late: isLate,
-          calculated_ot: dailyOT > 0 ? dailyOT : 0
+          calculated_ot: log?.ot_approved === true && dailyOT > 0 ? dailyOT : 0
         };
       });
       
@@ -369,7 +358,7 @@ export default function AttendancePersonPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 print:hidden">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            <Link href="/attendance" className="text-slate-400 hover:text-indigo-600 dark:text-indigo-400 transition">&larr;</Link>
+            <Link href={ROUTES.ATTENDANCE} className="text-slate-400 hover:text-indigo-600 dark:text-indigo-400 transition">&larr;</Link>
             จัดการเวลาเข้า-ออก (รายบุคคล)
           </h1>
           <p className="text-slate-500 mt-2 ml-10">ดูและแก้ไขเวลาการทำงานของพนักงานเป็นรายบุคคลตามช่วงเวลา</p>
@@ -451,7 +440,7 @@ export default function AttendancePersonPage() {
         <p>ช่วงเวลา: {startDate} ถึง {endDate}</p>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden print:border-none print:shadow-none">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden print:border-none print:shadow-none print:rounded-none print:overflow-visible">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center print:hidden">
           <h2 className="font-bold text-slate-700 dark:text-slate-200">
             ข้อมูลการลงเวลา {records.length > 0 && `(พบ ${records.length} วัน)`}

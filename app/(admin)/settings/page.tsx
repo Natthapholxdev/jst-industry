@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
 import { Settings as SettingsIcon, Clock, Flame, Sun, Moon, Monitor, Save, Plus } from 'lucide-react';
 import ShiftManager from '@/app/components/ShiftManager';
+import { ROUTES } from '@/lib/routes';
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -24,7 +25,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch('/api/settings');
+        const res = await fetch(ROUTES.API.SETTINGS);
         if (res.ok) {
           const data = await res.json();
           if (data) setSettings(prev => ({ ...prev, ...data }));
@@ -52,7 +53,7 @@ export default function SettingsPage() {
     setMessage({ text: '', type: '' });
 
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch(ROUTES.API.SETTINGS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
@@ -72,7 +73,7 @@ export default function SettingsPage() {
     <div className="p-4 sm:p-8 max-w-4xl mx-auto font-sans">
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white flex items-center gap-3">
-          <Link href="/dashboard" className="text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:text-slate-300 transition">&larr;</Link>
+          <Link href={ROUTES.DASHBOARD} className="text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:text-slate-300 transition">&larr;</Link>
           ตั้งค่าระบบ
         </h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1 ml-10 font-medium">กำหนดเวลาการทำงานและเงื่อนไขของระบบ</p>
