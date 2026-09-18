@@ -62,19 +62,32 @@ const ThaiTimeInput = ({
 export default function AttendancePersonPage() {
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
-    today.setDate(1);
-    return today.toISOString().split("T")[0];
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    if (date <= 15) {
+      return new Date(year, month, 1).toISOString().split("T")[0];
+    } else {
+      return new Date(year, month, 16).toISOString().split("T")[0];
+    }
   });
-  
+
   const [endDate, setEndDate] = useState(() => {
     const today = new Date();
-    return today.toISOString().split("T")[0];
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    if (date <= 15) {
+      return new Date(year, month, 15).toISOString().split("T")[0];
+    } else {
+      return new Date(year, month + 1, 0).toISOString().split("T")[0];
+    }
   });
 
   const [employees, setEmployees] = useState<any[]>([]);
   const [shifts, setShifts] = useState<any[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState<string>("");
-  
+
   const [records, setRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -88,7 +101,7 @@ export default function AttendancePersonPage() {
     const [h, m] = cleanStr.split(':').map(Number);
     return (h || 0) + ((m || 0) / 60);
   };
-  
+
   useEffect(() => {
     // Read empId from URL
     const params = new URLSearchParams(window.location.search);
@@ -100,9 +113,9 @@ export default function AttendancePersonPage() {
         .select('id, emp_code, full_name, shift_id')
         .eq('status', 'Active')
         .order('emp_code', { ascending: true });
-        
+
       const { data: shiftsData } = await supabase.from('shifts').select('*');
-      
+
       if (shiftsData) setShifts(shiftsData);
       if (data) {
         setEmployees(data);
@@ -110,7 +123,7 @@ export default function AttendancePersonPage() {
           setSelectedEmpId(empIdFromUrl);
           // Small timeout to wait for selectedEmpId state update
           setTimeout(() => {
-             document.getElementById('fetchDataBtn')?.click();
+            document.getElementById('fetchDataBtn')?.click();
           }, 300);
         } else if (data.length > 0) {
           setSelectedEmpId(data[0].id);
@@ -124,10 +137,10 @@ export default function AttendancePersonPage() {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
-    
+
     let start = "";
     let end = "";
-    
+
     if (type === "1-15") {
       start = new Date(year, month, 1).toISOString().split("T")[0];
       end = new Date(year, month, 15).toISOString().split("T")[0];
@@ -138,57 +151,57 @@ export default function AttendancePersonPage() {
       start = new Date(year, month, 1).toISOString().split("T")[0];
       end = new Date(year, month + 1, 0).toISOString().split("T")[0];
     }
-    
+
     setStartDate(start);
     setEndDate(end);
   };
 
   const fetchPersonRecords = async () => {
     if (!selectedEmpId || !startDate || !endDate) return;
-    
+
     setIsLoading(true);
     try {
       // Create an array of all dates in the range
       const dateArray = [];
       let currentDate = new Date(startDate);
       const lastDate = new Date(endDate);
-      
+
       while (currentDate <= lastDate) {
         dateArray.push(currentDate.toISOString().split("T")[0]);
         currentDate.setDate(currentDate.getDate() + 1);
       }
-      
+
       const { data: logs } = await supabase
         .from("attendance_logs")
         .select("*")
         .eq("employee_id", selectedEmpId)
         .gte("log_date", startDate)
         .lte("log_date", endDate);
-        
+
       const { data: holidays } = await supabase
         .from("holidays")
         .select("*")
         .gte("holiday_date", startDate)
         .lte("holiday_date", endDate);
-        
+
       const empInfo = employees.find(e => e.id === selectedEmpId);
-        
+
       const combinedRecords = dateArray.map(dateStr => {
         const log = logs?.find(l => l.log_date === dateStr);
         const holiday = holidays?.find(h => h.holiday_date === dateStr);
         const dayOfWeek = new Date(dateStr).getDay();
-        
+
         let defaultMultiplier = 1.0;
         if (holiday) {
           defaultMultiplier = holiday.multiplier || 2.0;
         }
-        
+
         const empShift = shifts.find(s => s.id === empInfo?.shift_id) || { time_in: '08:00', ot_start_time: '18:30' };
         const shiftStart = timeToHours(empShift.time_in);
-        
+
         let isLate = false;
         if (log?.time_in_1 && log.time_in_1 !== '-') {
-           isLate = timeToHours(log.time_in_1) > shiftStart;
+          isLate = timeToHours(log.time_in_1) > shiftStart;
         }
 
         let dailyOT = 0;
@@ -228,7 +241,7 @@ export default function AttendancePersonPage() {
           calculated_ot: log?.ot_approved === true && dailyOT > 0 ? dailyOT : 0
         };
       });
-      
+
       setRecords(combinedRecords);
     } catch (error) {
       console.error(error);
@@ -246,7 +259,7 @@ export default function AttendancePersonPage() {
 
   const handleSave = async () => {
     const editedRecords = records.filter(r => r.is_edited);
-    
+
     if (editedRecords.length === 0) {
       return Swal.fire({ icon: "info", title: "ไม่มีการเปลี่ยนแปลง", text: "ยังไม่มีการแก้ไขข้อมูล", confirmButtonColor: "#4f46e5" });
     }
@@ -270,8 +283,8 @@ export default function AttendancePersonPage() {
             await fetch("/api/attendance", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ 
-                date: rec.log_date, 
+              body: JSON.stringify({
+                date: rec.log_date,
                 records: [rec] // ส่งไปแค่คนเดียว
               }),
             });
@@ -306,12 +319,12 @@ export default function AttendancePersonPage() {
   };
 
   const colLabels: Record<keyof typeof colVisibility, string> = {
-    time_in_1: 'เข้าเช้า',
-    time_out_1: 'ออกเที่ยง',
-    time_in_2: 'เข้าบ่าย',
-    time_out_2: 'เลิกงาน',
-    time_in_3: 'เข้า OT',
-    time_out_3: 'ออก OT',
+    time_in_1: 'เข้าเช้า (08:00)',
+    time_out_1: 'ออกเช้า (12:00)',
+    time_in_2: 'เข้าบ่าย (13:00)',
+    time_out_2: 'ออกบ่าย (17:00)',
+    time_in_3: 'เข้า OT (17:00)',
+    time_out_3: 'ออก OT (21:00)',
     calculated_ot: 'รวม OT (ชม.)',
     remark: 'หมายเหตุ',
     pay_multiplier: 'อัตราค่าแรง',
@@ -322,17 +335,17 @@ export default function AttendancePersonPage() {
 
   const exportToExcel = () => {
     if (records.length === 0) return Swal.fire({ icon: "warning", title: "ไม่มีข้อมูล", text: "ไม่มีข้อมูลสำหรับดาวน์โหลด" });
-    
+
     const empInfo = employees.find(e => e.id === selectedEmpId);
-    
+
     const excelData = records.map((rec) => {
       const row: any = { 'วันที่': rec.log_date };
-      if (colVisibility.time_in_1) row['เข้าเช้า'] = rec.time_in_1 || '-';
-      if (colVisibility.time_out_1) row['ออกเที่ยง'] = rec.time_out_1 || '-';
-      if (colVisibility.time_in_2) row['เข้าบ่าย'] = rec.time_in_2 || '-';
-      if (colVisibility.time_out_2) row['เลิกงาน'] = rec.time_out_2 || '-';
-      if (colVisibility.time_in_3) row['เข้า OT'] = rec.time_in_3 || '-';
-      if (colVisibility.time_out_3) row['ออก OT'] = rec.time_out_3 || '-';
+      if (colVisibility.time_in_1) row['เข้าเช้า (08:00)'] = rec.time_in_1 || '-';
+      if (colVisibility.time_out_1) row['ออกเช้า (12:00)'] = rec.time_out_1 || '-';
+      if (colVisibility.time_in_2) row['เข้าบ่าย (13:00)'] = rec.time_in_2 || '-';
+      if (colVisibility.time_out_2) row['ออกบ่าย (17:00)'] = rec.time_out_2 || '-';
+      if (colVisibility.time_in_3) row['เข้า OT (17:00)'] = rec.time_in_3 || '-';
+      if (colVisibility.time_out_3) row['ออก OT (21:00)'] = rec.time_out_3 || '-';
       if (colVisibility.calculated_ot) row['รวม OT (ชม.)'] = rec.calculated_ot > 0 ? rec.calculated_ot.toFixed(1) : '-';
       if (colVisibility.remark) row['หมายเหตุ'] = rec.remark || '-';
       if (colVisibility.pay_multiplier) row['อัตราค่าแรง'] = rec.pay_multiplier || '1.0';
@@ -343,13 +356,13 @@ export default function AttendancePersonPage() {
     });
 
     const worksheet = xlsx.utils.json_to_sheet(excelData);
-    
+
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, 'ข้อมูลการลงเวลา');
 
     const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-    
+
     saveAs(data, `เวลาเข้าออก_${empInfo?.full_name}_${startDate}_ถึง_${endDate}.xlsx`);
   };
 
@@ -369,7 +382,7 @@ export default function AttendancePersonPage() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
           <div className="md:col-span-1">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">เลือกพนักงาน</label>
-            <select 
+            <select
               value={selectedEmpId}
               onChange={(e) => setSelectedEmpId(e.target.value)}
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium dark:text-slate-200"
@@ -379,7 +392,7 @@ export default function AttendancePersonPage() {
               ))}
             </select>
           </div>
-          
+
           <div className="md:col-span-2">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">ช่วงเวลา</label>
             <div className="flex items-center gap-2">
@@ -393,7 +406,7 @@ export default function AttendancePersonPage() {
               <button onClick={() => setDateRange("this_month")} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 px-3 py-1 rounded font-bold transition">เดือนนี้ทั้งเดือน</button>
             </div>
           </div>
-          
+
           <div className="md:col-span-2 flex flex-col gap-3">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">ตั้งค่าการแสดงผล (ตาราง & พิมพ์ & Excel)</label>
             <div className="flex flex-wrap gap-2 mb-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -404,23 +417,23 @@ export default function AttendancePersonPage() {
                 </label>
               ))}
             </div>
-            
+
             <div className="flex gap-2">
-              <button 
+              <button
                 id="fetchDataBtn"
                 onClick={fetchPersonRecords}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 shadow-sm py-2 transition text-sm"
               >
                 <Search className="w-4 h-4" /> ดึงข้อมูล
               </button>
-              <button 
+              <button
                 onClick={exportToExcel}
                 disabled={records.length === 0}
                 className={`flex-1 font-bold rounded-lg flex items-center justify-center gap-1.5 shadow-sm py-2 transition text-sm ${records.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
               >
                 📊 Excel
               </button>
-              <button 
+              <button
                 onClick={() => window.print()}
                 className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 shadow-sm py-2 transition text-sm"
               >
@@ -446,9 +459,9 @@ export default function AttendancePersonPage() {
             ข้อมูลการลงเวลา {records.length > 0 && `(พบ ${records.length} วัน)`}
           </h2>
           {records.filter(r => r.is_edited).length > 0 && (
-             <button onClick={handleSave} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-2 text-sm">
-               <Save className="w-4 h-4" /> บันทึกส่วนที่แก้ไข ({records.filter(r => r.is_edited).length} วัน)
-             </button>
+            <button onClick={handleSave} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-2 text-sm">
+              <Save className="w-4 h-4" /> บันทึกส่วนที่แก้ไข ({records.filter(r => r.is_edited).length} วัน)
+            </button>
           )}
         </div>
 
@@ -469,12 +482,12 @@ export default function AttendancePersonPage() {
               <thead className="bg-slate-100 dark:bg-slate-800/50 sticky top-0 z-10 shadow-sm print:static print:shadow-none">
                 <tr>
                   <th className="px-4 py-3 print:px-1 print:py-1 text-left text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 sticky left-0 z-20 print:static bg-slate-100 dark:bg-slate-800 min-w-[120px] print:min-w-0">วันที่</th>
-                  {colVisibility.time_in_1 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าเช้า</th>}
-                  {colVisibility.time_out_1 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">ออกเที่ยง</th>}
-                  {colVisibility.time_in_2 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าบ่าย</th>}
-                  {colVisibility.time_out_2 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">เลิกงาน</th>}
-                  {colVisibility.time_in_3 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT</th>}
-                  {colVisibility.time_out_3 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50">ออก OT</th>}
+                  {colVisibility.time_in_1 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าเช้า (08:00)</th>}
+                  {colVisibility.time_out_1 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">ออกเช้า (12:00)</th>}
+                  {colVisibility.time_in_2 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">เข้าบ่าย (13:00)</th>}
+                  {colVisibility.time_out_2 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200">ออกบ่าย (17:00)</th>}
+                  {colVisibility.time_in_3 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">เข้า OT (17:00)</th>}
+                  {colVisibility.time_out_3 && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50">ออก OT (21:00)</th>}
                   {colVisibility.calculated_ot && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-orange-700 bg-orange-100/50 border-l border-orange-200">รวม OT (ชม.)</th>}
                   {colVisibility.remark && <th className="px-4 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-slate-700 dark:text-slate-200 border-l border-slate-200 dark:border-slate-700">หมายเหตุ</th>}
                   {colVisibility.pay_multiplier && <th className="px-2 py-3 print:px-1 print:py-1 text-center text-sm print:text-xs font-bold text-indigo-700 bg-indigo-50/50 border-l border-indigo-200">อัตราค่าแรง</th>}
@@ -487,7 +500,7 @@ export default function AttendancePersonPage() {
                 {records.map((rec) => {
                   const isMissingPunch = (rec.time_in_1 && !rec.time_out_1) || (rec.time_in_2 && !rec.time_out_2);
                   const isAbsent = !rec.time_in_1 && !rec.time_out_1 && !rec.time_in_2 && !rec.time_out_2 && !rec.remark;
-                  
+
                   return (
                     <tr key={rec.log_date} className={`hover:bg-slate-50 dark:hover:bg-slate-900 transition ${rec.is_edited ? "bg-yellow-50 dark:bg-yellow-900/20" : ""} ${isMissingPunch ? "bg-red-50 dark:bg-red-900/20" : ""} ${rec.is_holiday ? "bg-rose-50/30 dark:bg-rose-900/20" : ""} print:bg-transparent`}>
                       <td className="px-4 py-2 print:px-1 print:py-1 text-sm print:text-[10px] font-bold text-slate-800 dark:text-slate-200 sticky left-0 print:static bg-white dark:bg-slate-800 print:bg-transparent border-r border-slate-100 dark:border-slate-700">
@@ -495,7 +508,7 @@ export default function AttendancePersonPage() {
                         {rec.is_holiday && <div className="text-[10px] text-rose-600 font-bold bg-rose-100 rounded px-1 inline-block ml-1 mt-1">{rec.holiday_name}</div>}
                         {isAbsent && !rec.is_holiday && <div className="text-[10px] text-slate-400 font-normal ml-1">ไม่มีข้อมูล</div>}
                       </td>
-                      
+
                       {/* วนลูปเวลาปกติ */}
                       {colVisibility.time_in_1 && (
                         <td className="px-1 py-2 print:px-0 print:py-1 text-center">
@@ -547,7 +560,7 @@ export default function AttendancePersonPage() {
                           <div className="hidden print:block text-[10px]">{rec.time_out_3 || "-"}</div>
                         </td>
                       )}
-                      
+
                       {colVisibility.calculated_ot && (
                         <td className="px-1 py-2 print:px-0 print:py-1 text-center bg-orange-50/20 print:bg-transparent border-l border-orange-200">
                           <div className="font-bold text-xs text-orange-700 print:text-[10px]">
@@ -582,7 +595,7 @@ export default function AttendancePersonPage() {
                           <div className="hidden print:block text-[10px]">{rec.pay_multiplier || "1"}</div>
                         </td>
                       )}
-                      
+
                       {/* ตัวคูณ OT */}
                       {colVisibility.ot_multiplier && (
                         <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-orange-100 bg-orange-50/10 print:bg-transparent">
@@ -599,7 +612,7 @@ export default function AttendancePersonPage() {
                           <div className="hidden print:block text-[10px]">{rec.ot_multiplier || "1"}</div>
                         </td>
                       )}
-                      
+
                       {/* เงินเพิ่ม */}
                       {colVisibility.extra_add && (
                         <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-emerald-100 bg-emerald-50/10 print:bg-transparent">
@@ -611,7 +624,7 @@ export default function AttendancePersonPage() {
                           <div className="hidden print:block text-[10px]">{rec.extra_add || "-"}</div>
                         </td>
                       )}
-                      
+
                       {/* หักเงิน */}
                       {colVisibility.extra_deduct && (
                         <td className="px-2 py-2 print:px-1 print:py-1 text-center border-l border-rose-100 bg-rose-50/10 print:bg-transparent">
@@ -623,7 +636,7 @@ export default function AttendancePersonPage() {
                           <div className="hidden print:block text-[10px]">{rec.extra_deduct || "-"}</div>
                         </td>
                       )}
-                      
+
                     </tr>
                   );
                 })}

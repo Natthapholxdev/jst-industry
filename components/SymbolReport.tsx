@@ -9,14 +9,27 @@ import { saveAs } from 'file-saver';
 
 export default function SymbolReport() {
   const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(1);
-    return d.toISOString().split('T')[0];
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    if (date <= 15) {
+      return new Date(year, month, 1).toISOString().split("T")[0];
+    } else {
+      return new Date(year, month, 16).toISOString().split("T")[0];
+    }
   });
-  
+
   const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    return d.toISOString().split('T')[0];
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    if (date <= 15) {
+      return new Date(year, month, 15).toISOString().split("T")[0];
+    } else {
+      return new Date(year, month + 1, 0).toISOString().split("T")[0];
+    }
   });
 
   const [reportData, setReportData] = useState<{ employees: any[], dates: string[], logsMap: any, shifts: any[] } | null>(null);
@@ -238,7 +251,7 @@ export default function SymbolReport() {
           <h2 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
             รายงานแบบเวลา
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">สรุปข้อมูลตารางลงเวลา (เวลาเข้า, OT, 2 แรง)</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">สรุปข้อมูลตารางลงเวลา (เวลาเข้า-ออก, OT 17:00-21:00, 2 แรง)</p>
         </div>
       </div>
 
