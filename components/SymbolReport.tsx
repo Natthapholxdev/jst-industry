@@ -407,9 +407,9 @@ export default function SymbolReport() {
                               <div className={`font-bold text-sm ${data.isLate ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
                                 {data.timeText}
                               </div>
-                              {data.recordedOT > 0 && (
+                              {(data.recordedOT ?? 0) > 0 && (
                                 <div className={`text-[11px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded-full ${data.isOTApproved ? 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30' : 'text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-slate-700'}`}>
-                                  {data.isOTApproved ? `OT ${data.recordedOT.toFixed(1)} ชม.` : `OT รออนุมัติ ${data.recordedOT.toFixed(1)} ชม.`}
+                                  {data.isOTApproved ? `OT ${(data.recordedOT ?? 0).toFixed(1)} ชม.` : `OT รออนุมัติ ${(data.recordedOT ?? 0).toFixed(1)} ชม.`}
                                 </div>
                               )}
                               {data.isDoublePay && (
