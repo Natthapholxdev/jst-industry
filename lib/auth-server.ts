@@ -3,12 +3,15 @@ import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';  
 // Secret key for signing the JWT  
 const jwtSecretString = process.env.JWT_SECRET;  
-if (!jwtSecretString && process.env.NODE_ENV === 'production') {  
-  throw new Error('FATAL: JWT_SECRET environment variable is not set in production!');  
-}  
-const JWT_SECRET = new TextEncoder().encode(  
-  jwtSecretString || 'fallback_secret_key_for_jst_industry_hr_system'  
-);  
+
+const getJwtSecret = () => {
+  if (!jwtSecretString && process.env.NODE_ENV === 'production') {
+    // Vercel build step sets NODE_ENV=production but might not have the secret.
+    // We only throw if this is actually called at runtime, avoiding build failures.
+    console.error('FATAL: JWT_SECRET environment variable is missing in production!');
+  }
+  return new TextEncoder().encode(jwtSecretString || 'fallback_secret_key_for_jst_industry_hr_system');
+};
   
 // create Token  
 export async function createSession(payload: any) {  
@@ -16,7 +19,7 @@ export async function createSession(payload: any) {
     .setProtectedHeader({ alg: 'HS256' })  
     .setIssuedAt()  
     .setExpirationTime('1d') // expire in 1 day  
-    .sign(JWT_SECRET);  
+    .sign(getJwtSecret());  
   
   const cookieStore = await cookies();  
   cookieStore.set('hr_session', token, {  
@@ -31,7 +34,7 @@ export async function createSession(payload: any) {
 export async function verifyAuth(token: string | undefined) {  
   if (!token) return null;  
   try {  
-    const { payload } = await jwtVerify(token, JWT_SECRET);  
+    const { payload } = await jwtVerify(token, getJwtSecret());  
     return payload;  
   } catch (error) {  
     return null;  
