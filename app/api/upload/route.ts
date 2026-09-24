@@ -14,6 +14,21 @@ export async function POST(request: Request) {
     const file = formData.get("file") as File;
     if (!file) return NextResponse.json({ error: "ไม่พบไฟล์" }, { status: 400 });
 
+    // Validate file type
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel'
+    ];
+    const fileName = file.name.toLowerCase();
+    if (!allowedTypes.includes(file.type) && !fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+      return NextResponse.json({ error: 'ไฟล์ไม่ถูกต้อง กรุณาอัปโหลดเฉพาะไฟล์ Excel (.xlsx, .xls) เท่านั้น' }, { status: 400 });
+    }
+    // Validate file size (max 10MB)
+    const maxSizeBytes = 10 * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      return NextResponse.json({ error: 'ไฟล์มีขนาดใหญ่เกินไป กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 10MB' }, { status: 400 });
+    }
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const workbook = xlsx.read(buffer, { type: "buffer" });

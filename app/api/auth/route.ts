@@ -20,12 +20,29 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'ชื่อผู้ใช้ หรือ รหัสผ่าน ไม่ถูกต้อง!' }, { status: 401 });
       }
 
-      // Compare password (also fallback to plaintext if not matched yet)
-      const isMatch = await bcrypt.compare(password, admin.password);
-      if (!isMatch) {
-        if (password !== admin.password) {
-           return NextResponse.json({ error: 'ชื่อผู้ใช้ หรือ รหัสผ่าน ไม่ถูกต้อง!' }, { status: 401 });
+      // ตรวจสอบรหัสผ่าน (รองรับทั้ง bcrypt hash และ plaintext เดิม พร้อมอัปเกรดเป็น bcrypt อัตโนมัติ)
+      let isMatch = false;
+      const isBcryptHash = admin.password && (admin.password.startsWith('$2a$') || admin.password.startsWith('$2b$') || admin.password.startsWith('$2y$'));
+
+      if (isBcryptHash) {
+        isMatch = await bcrypt.compare(password, admin.password);
+      } else {
+        // ตรวจสอบแบบ Plaintext เดิม
+        isMatch = (password === admin.password);
+        if (isMatch) {
+          // อัปเกรดเป็น Bcrypt Hash ลงฐานข้อมูลเพื่อความปลอดภัย
+          try {
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+            await supabase.from('admins').update({ password: hashedPassword }).eq('id', admin.id);
+          } catch (e) {
+            console.error('Failed to auto-hash admin password:', e);
+          }
         }
+      }
+
+      if (!isMatch) {
+        return NextResponse.json({ error: 'ชื่อผู้ใช้ หรือ รหัสผ่าน ไม่ถูกต้อง!' }, { status: 401 });
       }
 
       // Set cookie using JWT
@@ -39,7 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid login type' }, { status: 400 });
 
   } catch (error: any) {
-    // ซ่อนรายละเอียด Error ไม่ให้หลุดไปที่ Client
-    return NextResponse.json({ error: 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+    console.error('Auth API Error:', error);
+    return NextResponse.json({ error: error?.message || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
   }
 }

@@ -8,11 +8,17 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { error } = await supabase.from('employees').insert([body]);
+    // Whitelist allowed fields
+    const allowedFields = ['emp_code', 'full_name', 'position', 'department', 'status', 'shift_id', 'weekly_day_off', 'fingerprint_id', 'phone', 'address', 'start_date', 'note'];
+    const sanitized: any = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) sanitized[field] = body[field];
+    }
+    const { error } = await supabase.from('employees').insert([sanitized]);
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดจากระบบ' }, { status: 500 });
   }
 }
 
@@ -23,11 +29,17 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
     const id = body.id;
-    delete body.id;
-    const { error } = await supabase.from('employees').update(body).eq('id', id);
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    // Whitelist allowed fields
+    const allowedFields = ['emp_code', 'full_name', 'position', 'department', 'status', 'shift_id', 'weekly_day_off', 'fingerprint_id', 'phone', 'address', 'start_date', 'note'];
+    const sanitized: any = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) sanitized[field] = body[field];
+    }
+    const { error } = await supabase.from('employees').update(sanitized).eq('id', id);
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาดจากระบบ' }, { status: 500 });
   }
 }

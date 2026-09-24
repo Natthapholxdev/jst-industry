@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
+import { getUserFromRequest } from '@/lib/auth-server';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const user: any = await getUserFromRequest(request);
+  if (!user || user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { data: admins, error } = await supabase
       .from('admins')
@@ -17,11 +23,19 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const user: any = await getUserFromRequest(request);
+  if (!user || user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { username, password } = await request.json();
 
     if (!username || !password) {
       return NextResponse.json({ success: false, error: 'กรุณากรอก Username และ Password' }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return NextResponse.json({ success: false, error: 'รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร' }, { status: 400 });
     }
 
     // Check if username already exists
@@ -52,6 +66,11 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const user: any = await getUserFromRequest(request);
+  if (!user || user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await request.json();
 

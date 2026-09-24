@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
 import { Plus, Search, Eye, ClipboardList, Edit, User, Smartphone, Building2, FolderOpen, MapPin, AlertTriangle, Wallet, FileText, CheckCircle, Save, Phone, Circle, UserCircle2, Clock, CalendarOff, LayoutDashboard, Settings, LogOut, BarChart3, Sun, Moon, Monitor, Flame, UserX, UserSearch, Printer } from 'lucide-react';
 import ThaiDatePicker from '@/components/ThaiDatePicker';
+import EmployeeProfileDossier from '@/components/EmployeeProfileDossier';
 import { ROUTES } from '@/lib/routes';
 
 export default function EmployeesPage() {
@@ -413,126 +414,44 @@ export default function EmployeesPage() {
         )}
       </div>
 
-      {/* Modal หลัก */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 print:p-0 print:bg-white print:static">
-          <div className={`bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full ${isViewMode ? 'max-w-3xl' : 'max-w-4xl'} max-h-[90vh] flex flex-col overflow-hidden print:max-w-full print:shadow-none print:max-h-none print:overflow-visible`}>
+      {/* 🌟 หน้าต่างแฟ้มประวัติพนักงานแบบครบวงจรในหน้าเดียว (Interactive All-in-One Dossier) */}
+      {isModalOpen && isViewMode && selectedEmployee && (
+        <EmployeeProfileDossier
+          employee={selectedEmployee}
+          shifts={shifts}
+          onClose={() => {
+            setIsModalOpen(false);
+            setIsViewMode(false);
+          }}
+          onEdit={handleEditFromView}
+          onSoftDelete={(emp) => {
+            setIsModalOpen(false);
+            setIsViewMode(false);
+            handleSoftDelete(emp);
+          }}
+        />
+      )}
+
+      {/* 🌟 ฟอร์มเพิ่ม / แก้ไขข้อมูลพนักงาน (Add / Edit Form Modal) */}
+      {isModalOpen && !isViewMode && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
             
-            {/* Header ของ Modal */}
-            <div className={`px-6 py-4 flex justify-between items-center shrink-0 print:hidden ${isViewMode ? 'bg-indigo-600 dark:bg-indigo-500 text-white' : 'bg-slate-800 dark:bg-slate-900 text-white'}`}>
+            {/* Header ของ Modal (Edit / Add Mode) */}
+            <div className="px-6 py-4 flex justify-between items-center shrink-0 bg-slate-800 dark:bg-slate-900 text-white">
               <h2 className="text-xl font-bold flex items-center gap-2">
-                {isViewMode ? <><ClipboardList className="w-5 h-5 mr-2" /> แฟ้มประวัติพนักงาน</> : (isEditing ? <><Edit className="w-5 h-5 mr-2" /> แก้ไขข้อมูลพนักงาน</> : <><Plus className="w-5 h-5 mr-2" /> ลงทะเบียนพนักงานใหม่</>)}
+                {isEditing ? <><Edit className="w-5 h-5 mr-2" /> แก้ไขข้อมูลพนักงาน</> : <><Plus className="w-5 h-5 mr-2" /> ลงทะเบียนพนักงานใหม่</>}
               </h2>
-              <div className="flex items-center gap-4">
-                {isViewMode && (
-                  <>
-                    <button onClick={() => window.print()} className="px-4 py-1.5 bg-white text-indigo-700 dark:text-white dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm border border-indigo-200">
-                      <Printer className="w-4 h-4 mr-1 inline-block" /> พิมพ์โปรไฟล์
-                    </button>
-                    <button onClick={handleEditFromView} className="px-4 py-1.5 bg-white text-indigo-700 dark:text-white dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm">
-                      <Edit className="w-4 h-4 mr-1 inline-block" /> แก้ไข
-                    </button>
-                    {selectedEmployee?.status === 'Active' && (
-                      <button onClick={() => { setIsModalOpen(false); handleSoftDelete(selectedEmployee); }} className="px-4 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-bold backdrop-blur-sm transition shadow-sm border border-rose-400">
-                        <UserX className="w-4 h-4 mr-1 inline-block" /> พ้นสภาพ
-                      </button>
-                    )}
-                  </>
-                )}
-                <button onClick={() => setIsModalOpen(false)} className="text-white/70 hover:text-white font-bold text-2xl leading-none">&times;</button>
-              </div>
+              <button onClick={() => setIsModalOpen(false)} className="text-white/70 hover:text-white font-bold text-2xl leading-none">&times;</button>
             </div>
 
-            {/* ส่วนแสดงผลแบบ "ดูโปรไฟล์ (View Mode)" */}
-            {isViewMode && selectedEmployee && (
-              <div className="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-slate-900/50">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6 flex flex-col md:flex-row gap-6 items-center md:items-start relative overflow-hidden">
-                  <div className={`absolute top-0 left-0 w-2 h-full ${selectedEmployee.status === 'Active' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                  
-                  <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center text-4xl text-indigo-500 dark:text-indigo-400 shrink-0 border-4 border-white dark:border-slate-800 shadow-sm">
-                    {selectedEmployee.gender === 'หญิง' ? <UserCircle2 className="w-12 h-12" /> : <UserCircle2 className="w-12 h-12" />}
-                  </div>
-
-                  <div className="flex-1 text-center md:text-left">
-                    <h2 className="text-2xl font-black text-slate-800 dark:text-white">{selectedEmployee.full_name} {selectedEmployee.nickname && `(${selectedEmployee.nickname})`}</h2>
-                    <p className="text-indigo-600 dark:text-indigo-400 font-bold mt-1 text-lg">{selectedEmployee.position || 'พนักงาน'} • {selectedEmployee.departments?.name_th || 'ไม่ระบุแผนก'}</p>
-                    <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-3">
-                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold border border-slate-200 dark:border-slate-600">รหัส: {selectedEmployee.emp_code}</span>
-                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold border border-slate-200 dark:border-slate-600">สแกนนิ้ว: {selectedEmployee.fingerprint_id || '-'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-2"><Smartphone className="w-5 h-5 mr-2 inline-block" /> การติดต่อ</h3>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.phone || '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">อีเมล:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.email || '-'}</span></div>
-                      <div className="flex justify-between border-t border-dashed border-slate-200 dark:border-slate-700 pt-3"><span className="text-slate-500 dark:text-slate-400 font-bold">ที่อยู่ปัจจุบัน:</span></div>
-                      <p className="text-slate-700 dark:text-slate-300 font-medium bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg">
-                        {selectedEmployee.address_line1 ? (
-                          <>
-                            {selectedEmployee.address_line1} {selectedEmployee.address_street && `ถนน${selectedEmployee.address_street}`} <br/>
-                            {selectedEmployee.address_subdistrict && `ตำบล/แขวง ${selectedEmployee.address_subdistrict}`} {selectedEmployee.address_district && `อำเภอ/เขต ${selectedEmployee.address_district}`} <br/>
-                            {selectedEmployee.address_province && `จังหวัด${selectedEmployee.address_province}`} {selectedEmployee.address_zip}
-                          </>
-                        ) : (
-                          selectedEmployee.address || '-'
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-2"><User className="w-5 h-5 mr-2 inline-block" /> ข้อมูลส่วนบุคคล</h3>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เลขบัตร ปชช:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.national_id || '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">วันเกิด (อายุ):</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.birth_date || '-'} ({calculateAge(selectedEmployee.birth_date)})</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เพศ / กรุ๊ปเลือด:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.gender || '-'} / {selectedEmployee.blood_type || '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">วุฒิการศึกษา:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.education || '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">สถานภาพ:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.marital_status || '-'}</span></div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-2"><Wallet className="w-5 h-5 mr-2 inline-block" /> บัญชี / การจ้างงาน</h3>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">ธนาคาร:</span> <span className="font-bold text-slate-700 dark:text-slate-200">{selectedEmployee.bank_name || '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เลขที่บัญชี:</span> <span className="font-black text-indigo-700 dark:text-indigo-400 tracking-widest">{selectedEmployee.bank_account_no || '-'}</span></div>
-                      <div className="flex justify-between border-t border-dashed border-slate-200 dark:border-slate-700 pt-3"><span className="text-slate-500 dark:text-slate-400">ค่าแรงรายวัน (ปกติ):</span> <span className="font-bold text-indigo-600 dark:text-indigo-400">{selectedEmployee.hourly_rate || '0'} ฿/วัน</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">เรทค่าโอที (OT):</span> <span className="font-bold text-orange-600 dark:text-orange-400">{selectedEmployee.ot_hourly_rate || '0'} ฿/ชม.</span></div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-2"><AlertTriangle className="w-5 h-5 mr-2 inline-block" /> ติดต่อฉุกเฉิน & เอกสาร</h3>
-                    <div className="space-y-3 text-sm bg-rose-50 dark:bg-rose-500/10 p-3 rounded-lg mb-4">
-                      <div className="flex justify-between"><span className="text-rose-700 dark:text-rose-400 font-bold">ชื่อติดต่อ:</span> <span className="font-bold text-rose-800 dark:text-rose-300">{selectedEmployee.emergency_contact_name || '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-rose-700 dark:text-rose-400 font-bold">เบอร์โทร / เกี่ยวข้อง:</span> <span className="font-bold text-rose-800 dark:text-rose-300">{selectedEmployee.emergency_contact_phone || '-'} ({selectedEmployee.emergency_contact_relation || '-'})</span></div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 dark:text-slate-400">เอกสารแนบ:</span>
-                      {selectedEmployee.document_url ? (
-                        <a href={selectedEmployee.document_url} target="_blank" className="px-3 py-1 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-bold text-xs hover:bg-indigo-700">เปิดดูไฟล์</a>
-                      ) : <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 font-bold text-xs">ไม่มีไฟล์</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-
-            {/* ส่วนของ "ฟอร์มแก้ไข (Edit Mode)" */}
-            {!isViewMode && (
-              <>
-                <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 overflow-x-auto shrink-0 hide-scrollbar">
-                  <button type="button" onClick={() => setActiveTab('personal')} className={`px-6 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'personal' ? 'border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-800' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><User className="w-5 h-5 mr-2 inline-block" /> ข้อมูลส่วนตัว</button>
-                  <button type="button" onClick={() => setActiveTab('contact')} className={`px-6 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'contact' ? 'border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-800' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><Smartphone className="w-5 h-5 mr-2 inline-block" /> การติดต่อ & ฉุกเฉิน</button>
-                  <button type="button" onClick={() => setActiveTab('work')} className={`px-6 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'work' ? 'border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-800' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><Building2 className="w-4 h-4 mr-2 inline-block" /> ข้อมูลบริษัท & เงินเดือน</button>
-                  <button type="button" onClick={() => setActiveTab('docs')} className={`px-6 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'docs' ? 'border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-800' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><FolderOpen className="w-4 h-4 mr-2 inline-block" /> เอกสาร & อื่นๆ</button>
-                </div>
+            {/* ส่วนของ "ฟอร์มแก้ไข (Edit Mode Tabs)" */}
+            <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 overflow-x-auto shrink-0 hide-scrollbar">
+              <button type="button" onClick={() => setActiveTab('personal')} className={`px-6 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'personal' ? 'border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-800' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><User className="w-5 h-5 mr-2 inline-block" /> ข้อมูลส่วนตัว</button>
+              <button type="button" onClick={() => setActiveTab('contact')} className={`px-6 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'contact' ? 'border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-800' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><Smartphone className="w-5 h-5 mr-2 inline-block" /> การติดต่อ & ฉุกเฉิน</button>
+              <button type="button" onClick={() => setActiveTab('work')} className={`px-6 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'work' ? 'border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-800' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><Building2 className="w-4 h-4 mr-2 inline-block" /> ข้อมูลบริษัท & เงินเดือน</button>
+              <button type="button" onClick={() => setActiveTab('docs')} className={`px-6 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'docs' ? 'border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-800' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><FolderOpen className="w-4 h-4 mr-2 inline-block" /> เอกสาร & อื่นๆ</button>
+            </div>
                 
                 <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                   {/* TAB 1: ข้อมูลส่วนตัว */}
@@ -805,12 +724,9 @@ export default function EmployeesPage() {
                     </button>
                   </div>
                 </form>
-              </>
-            )}
-
-          </div>
-        </div>
-      )}
+              </div>
+            </div>
+          )}
     </div>
   );
 }

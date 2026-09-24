@@ -21,6 +21,20 @@ export const ROUTES = {
   ADMIN_LOGS: '/admin-logs',
   SETTINGS: '/settings',
   MANUAL: '/manual',
+
+  // HRM — Human Resource Management
+  PAYROLL: '/payroll',
+  PAYSLIP: '/payslip',
+  CONTRACTS: '/contracts',
+  BENEFITS: '/benefits',
+
+  // HRD — Human Resource Development
+  PERFORMANCE: '/performance',
+  TRAINING: '/training',
+
+  // HROD — HR Org Development
+  ORG_CHART: '/org-chart',
+  WORKFORCE_PLAN: '/workforce-plan',
   
   // API Routes
   API: {
@@ -36,6 +50,10 @@ export const ROUTES = {
     SHIFTS: '/api/shifts',
     UPLOAD: '/api/upload',
     UPLOAD_DEMO: '/api/upload-demo',
+    PAYROLL: '/api/payroll',
+    CONTRACTS: '/api/contracts',
+    PERFORMANCE: '/api/performance',
+    TRAINING: '/api/training',
   }
 } as const;
 

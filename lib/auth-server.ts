@@ -1,9 +1,13 @@
 import { jwtVerify, SignJWT } from 'jose';  
 import { cookies } from 'next/headers';  
 import { NextRequest } from 'next/server';  
-// Secret key for signing the JWT (in a real app, use environment variables)  
+// Secret key for signing the JWT  
+const jwtSecretString = process.env.JWT_SECRET;  
+if (!jwtSecretString && process.env.NODE_ENV === 'production') {  
+  throw new Error('FATAL: JWT_SECRET environment variable is not set in production!');  
+}  
 const JWT_SECRET = new TextEncoder().encode(  
-  process.env.JWT_SECRET || 'fallback_secret_key_for_jst_industry_hr_system'  
+  jwtSecretString || 'fallback_secret_key_for_jst_industry_hr_system'  
 );  
   
 // create Token  

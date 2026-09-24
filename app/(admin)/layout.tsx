@@ -7,8 +7,11 @@ import {
   LayoutDashboard, Clock, Users, Building2, CalendarOff, 
   FileText, BarChart3, Settings, LogOut, User,
   ChevronDown, ChevronRight, ChevronLeft, Menu, X, ShieldAlert,
-  History, Wallet, BookOpen
+  History, Wallet, BookOpen, DollarSign, FileSignature, TrendingUp,
+  GraduationCap, Network, UsersRound, Award, Lock
 } from 'lucide-react';
+
+import Swal from 'sweetalert2';
 
 const MENU_GROUPS = [
   {
@@ -26,11 +29,27 @@ const MENU_GROUPS = [
     ]
   },
   {
-    title: "HR & PAYROLL",
+    title: "HRM — บริหารทรัพยากรบุคคล",
     items: [
       { name: "ข้อมูลพนักงาน", href: "/employees", icon: Users, color: "blue" },
       { name: "จัดการแผนก", href: "/departments", icon: Building2, color: "cyan" },
-      { name: "สรุปค่าจ้างและโอที", href: "/ot-reports", icon: Wallet, color: "orange" },
+      { name: "สัญญาจ้างงาน", href: "/contracts", icon: FileSignature, color: "violet" },
+      { name: "ระบบเงินเดือน", href: "/payroll", icon: DollarSign, color: "emerald", isLocked: true },
+      { name: "สรุปค่าจ้างและโอที", href: "/ot-reports", icon: Wallet, color: "orange", isLocked: true },
+    ]
+  },
+  {
+    title: "HRD — พัฒนาบุคลากร",
+    items: [
+      { name: "ประเมินผล KPI", href: "/performance", icon: TrendingUp, color: "amber", isLocked: true },
+      { name: "Training & Development", href: "/training", icon: GraduationCap, color: "indigo", isLocked: true },
+    ]
+  },
+  {
+    title: "HROD — พัฒนาองค์กร",
+    items: [
+      { name: "โครงสร้างองค์กร", href: "/org-chart", icon: Network, color: "purple", isLocked: true },
+      { name: "วางแผนอัตรากำลัง", href: "/workforce-plan", icon: UsersRound, color: "rose", isLocked: true },
     ]
   },
   {
@@ -43,6 +62,9 @@ const MENU_GROUPS = [
     ]
   }
 ];
+
+
+
 
 export default function AdminDashboardLayout({
   children,
@@ -134,8 +156,28 @@ export default function AdminDashboardLayout({
 
                 {/* Items */}
                 <div className={`space-y-1.5 overflow-hidden transition-all duration-300 origin-top ${isOpen ? "max-h-[500px] opacity-100 scale-y-100" : "max-h-0 opacity-0 scale-y-0"}`}>
-                  {group.items.map((item, iIndex) => {
+                  {group.items.map((item: any, iIndex) => {
                     const isActive = pathname === item.href;
+                    if (item.isLocked) {
+                      return (
+                        <button 
+                          key={iIndex} 
+                          onClick={() => Swal.fire('ระบบยังไม่เปิดให้บริการ', 'ฟีเจอร์นี้อยู่ในระหว่างการพัฒนา', 'info')}
+                          title={collapsed ? item.name : undefined}
+                          className={`w-full group flex items-center ${collapsed ? 'justify-center px-0' : 'px-4'} py-3 rounded-xl transition-all duration-200 text-[var(--apple-text-secondary)] opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10`}
+                        >
+                          <div className={`p-1.5 rounded-lg transition-colors ${!collapsed && 'mr-3'} shadow-sm bg-transparent group-hover:text-slate-500 dark:group-hover:text-slate-300`}>
+                            <item.icon className="w-5 h-5" />
+                          </div>
+                          {!collapsed && (
+                            <div className="flex items-center justify-between w-full">
+                              <span className="truncate">{item.name}</span>
+                              <Lock className="w-3.5 h-3.5 text-slate-400" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    }
                     return (
                       <Link 
                         key={iIndex} 

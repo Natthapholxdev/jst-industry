@@ -8,42 +8,96 @@ import ThaiDatePicker from "@/components/ThaiDatePicker";
 import Swal from "sweetalert2";
 import { ROUTES } from '@/lib/routes';
 
-// Component ผสมผสานป้ายแสดงผล + ช่องพิมพ์เวลา (เอา disabled ออกไปเลย เพื่อให้แก้ได้อิสระ)
 const ThaiTimeInput = ({
   value,
   onChange,
   theme = "indigo",
+  isLate = false
 }: {
   value: string;
   onChange: (val: string) => void;
   theme?: "indigo" | "orange";
+  isLate?: boolean;
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [localVal, setLocalVal] = useState(value ? value.slice(0, 5) : "");
 
-  const colorClass = theme === "orange" ? "text-orange-700 border-orange-500 ring-2 ring-orange-200" : "text-indigo-700 dark:text-indigo-300 border-indigo-500 ring-2 ring-indigo-200";
-  const displayClass = theme === "orange" ? "bg-white dark:bg-slate-800 border-orange-200 hover:bg-orange-50 text-orange-700 cursor-pointer" : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-indigo-50 text-indigo-700 dark:text-indigo-300 cursor-pointer";
+  useEffect(() => {
+    setLocalVal(value ? value.slice(0, 5) : "");
+  }, [value]);
+
+  let colorClass = theme === "orange" ? "text-orange-700 border-orange-500 ring-2 ring-orange-200" : "text-indigo-700 dark:text-indigo-300 border-indigo-500 ring-2 ring-indigo-200";
+  let displayClass = theme === "orange" ? "bg-white dark:bg-slate-800 border-orange-200 hover:bg-orange-50 text-orange-700 cursor-pointer" : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-indigo-50 text-indigo-700 dark:text-indigo-300 cursor-pointer";
+
+  if (isLate) {
+    colorClass = "text-rose-700 dark:text-rose-300 border-rose-500 ring-2 ring-rose-200";
+    displayClass = "bg-rose-50 dark:bg-rose-900/30 border-rose-200 hover:bg-rose-100 text-rose-700 dark:text-rose-400 cursor-pointer";
+  }
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/[^\d]/g, '');
+    if (val.length > 4) val = val.slice(0, 4);
+    
+    let formatted = val;
+    if (val.length >= 3) {
+      formatted = `${val.slice(0, 2)}:${val.slice(2)}`;
+    }
+    
+    if (formatted.length >= 2) {
+      const h = parseInt(formatted.slice(0, 2), 10);
+      if (h > 23) formatted = '23' + formatted.slice(2);
+    }
+    if (formatted.length === 5) {
+      const m = parseInt(formatted.slice(3, 5), 10);
+      if (m > 59) formatted = formatted.slice(0, 3) + '59';
+    }
+    
+    setLocalVal(formatted);
+  };
 
   if (isEditing) {
     return (
       <input
-        type="time" step="2" autoFocus
-        className={`w-full min-w-[75px] px-1 py-1.5 text-sm font-bold text-center bg-white dark:bg-slate-800 border-2 rounded-lg outline-none transition-all shadow-sm ${colorClass}`}
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => setIsEditing(false)}
+        type="text"
+        placeholder="08:00"
+        maxLength={5}
+        autoFocus
+        className={`w-full min-w-[64px] px-1 py-1.5 text-xs font-bold text-center bg-white dark:bg-slate-800 border rounded outline-none transition-all shadow-sm ${colorClass}`}
+        value={localVal}
+        onChange={handleTimeChange}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+        }}
+        onBlur={() => {
+          setIsEditing(false);
+          let finalVal = localVal;
+          if (finalVal.length > 0 && finalVal.length < 5) {
+            const nums = finalVal.replace(':', '');
+            if (nums.length === 1) finalVal = `0${nums}:00`;
+            else if (nums.length === 2) finalVal = `${nums}:00`;
+            else if (nums.length === 3) finalVal = `${finalVal}0`;
+          }
+          setLocalVal(finalVal);
+          
+          if (finalVal !== (value ? value.slice(0, 5) : "")) {
+            onChange(finalVal);
+          }
+        }}
       />
     );
   }
 
   return (
     <div
+      tabIndex={0}
+      onFocus={() => setIsEditing(true)}
       onClick={() => setIsEditing(true)}
-      className={`w-full min-w-[75px] px-2 py-2 text-sm font-bold border rounded-lg text-center transition-all shadow-sm ${displayClass}`}
-      title="คลิกเพื่อแก้ไขเวลา"
+      className={`w-full min-w-[64px] px-1 py-1.5 text-xs font-bold border rounded text-center transition-all shadow-sm focus:ring-2 focus:outline-none ${displayClass}`}
+      title="คลิกหรือกด Tab เพื่อแก้ไขเวลา"
     >
       {value ? (
         <span className="flex items-center justify-center gap-1">
-          {value} <span className="text-[10px] opacity-70 font-normal">น.</span>
+          {value.slice(0, 5)} <span className="text-[9px] opacity-70 font-normal">น.</span>
         </span>
       ) : (
         <span className="text-slate-400 font-medium">-</span>
@@ -447,12 +501,14 @@ export default function AttendancePage() {
                           {emp.emp_code}
                         </div>
                       </td>
-                      <td className="px-4 py-2 print:px-1 print:py-1 text-sm print:text-[10px] text-slate-700 dark:text-slate-200 whitespace-nowrap bg-white dark:bg-slate-800 print:bg-transparent sticky left-16 print:static">
-                        {emp.full_name}
-                        {isMissingPunch && <span className="ml-2 text-xs font-bold text-red-500 print:hidden">⚠️ ลืมสแกนออก</span>}
-                        {hasInvalidTime && <span className="ml-2 text-xs font-bold text-rose-600 print:hidden">⚠️ เวลาไม่ถูกต้อง</span>}
-                        {hasPendingOT && <span className="ml-2 text-xs font-bold text-orange-600 print:hidden">🕒 OT รออนุมัติ</span>}
-                        {isAbsent && <span className="ml-2 text-xs font-bold text-slate-400 print:hidden">ยังไม่เข้างาน</span>}
+                      <td className="px-4 py-2 print:px-1 print:py-1 text-sm print:text-[10px] text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 print:bg-transparent sticky left-16 print:static min-w-[150px] max-w-[250px] z-10">
+                        <div className="font-bold truncate" title={emp.full_name}>{emp.full_name}</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {isMissingPunch && <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded print:hidden">⚠️ ลืมสแกนออก</span>}
+                          {hasInvalidTime && <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded print:hidden">⚠️ เวลาไม่ถูกต้อง</span>}
+                          {hasPendingOT && <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded print:hidden">🕒 OT รออนุมัติ</span>}
+                          {isAbsent && <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded print:hidden">ยังไม่เข้างาน</span>}
+                        </div>
                       </td>
 
                       {/* วนลูปเวลาปกติ */}
