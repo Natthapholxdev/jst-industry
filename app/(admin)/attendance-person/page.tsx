@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Search, User, Save, Printer, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import Swal from "sweetalert2";
@@ -113,6 +113,10 @@ export default function AttendancePersonPage() {
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   
+  const [dateRange, setDateRange] = useState<'all' | '1-15' | '16-31' | 'custom'>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  
   const [employees, setEmployees] = useState<any[]>([]);
   const [shifts, setShifts] = useState<any[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState<string>("");
@@ -201,16 +205,14 @@ export default function AttendancePersonPage() {
   const fetchMonthRecords = useCallback(async (empId: string, year: number, monthIndex: number) => {
     setIsLoadingDetail(true);
     try {
-      const startDate = `${year}-${String(monthIndex + 1).padStart(2, '0')}-01`;
-      const endDate = new Date(year, monthIndex + 1, 0).toISOString().split("T")[0];
+      const monthStr = String(monthIndex + 1).padStart(2, '0');
+      const startDate = `${year}-${monthStr}-01`;
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      const endDate = `${year}-${monthStr}-${String(daysInMonth).padStart(2, '0')}`;
 
       const dateArray = [];
-      let currentDate = new Date(startDate);
-      const lastDate = new Date(endDate);
-
-      while (currentDate <= lastDate) {
-        dateArray.push(currentDate.toISOString().split("T")[0]);
-        currentDate.setDate(currentDate.getDate() + 1);
+      for (let d = 1; d <= daysInMonth; d++) {
+        dateArray.push(`${year}-${monthStr}-${String(d).padStart(2, '0')}`);
       }
 
       const { data: logs } = await supabase
@@ -434,13 +436,34 @@ export default function AttendancePersonPage() {
     extra_deduct: 'หักเงิน'
   };
 
+  const filteredRecords = useMemo(() => {
+    if (dateRange === 'all') return records;
+    if (dateRange === '1-15') return records.filter(r => {
+      const d = parseInt(r.log_date.split('-')[2], 10);
+      return d >= 1 && d <= 15;
+    });
+    if (dateRange === '16-31') return records.filter(r => {
+      const d = parseInt(r.log_date.split('-')[2], 10);
+      return d >= 16 && d <= 31;
+    });
+    if (dateRange === 'custom') {
+      return records.filter(r => {
+        let match = true;
+        if (customStartDate && r.log_date < customStartDate) match = false;
+        if (customEndDate && r.log_date > customEndDate) match = false;
+        return match;
+      });
+    }
+    return records;
+  }, [records, dateRange, customStartDate, customEndDate]);
+
   const exportToExcel = () => {
-    if (records.length === 0) return Swal.fire({ icon: "warning", title: "ไม่มีข้อมูล", text: "ไม่มีข้อมูลสำหรับดาวน์โหลด" });
+    if (filteredRecords.length === 0) return Swal.fire({ icon: "warning", title: "ไม่มีข้อมูล", text: "ไม่มีข้อมูลสำหรับดาวน์โหลด" });
 
     const empInfo = employees.find(e => e.id === selectedEmpId);
     const monthName = selectedMonth !== null ? THAI_MONTHS[selectedMonth] : "ทุกเดือน";
 
-    const excelData = records.map((rec) => {
+    const excelData = filteredRecords.map((rec) => {
       const row: any = { 'วันที่': rec.log_date };
       if (colVisibility.time_in_1) row['เข้าเช้า (08:00)'] = rec.time_in_1 || '-';
       if (colVisibility.time_out_1) row['ออกเช้า (12:00)'] = rec.time_out_1 || '-';
@@ -480,9 +503,9 @@ export default function AttendancePersonPage() {
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6 print:hidden">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
           
-          <div className="md:col-span-1">
+          <div className="md:col-span-3">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">เลือกพนักงาน</label>
             <select
               value={selectedEmpId}
@@ -498,7 +521,7 @@ export default function AttendancePersonPage() {
             </select>
           </div>
 
-          <div className="md:col-span-1">
+          <div className="md:col-span-3">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">เปลี่ยนปี (พ.ศ.)</label>
             <div className="flex items-center justify-between p-1 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg">
               <button 
@@ -519,34 +542,90 @@ export default function AttendancePersonPage() {
             </div>
           </div>
 
-          {selectedMonth !== null && (
-            <div className="md:col-span-2 flex justify-end gap-2 mt-7">
-              <button
-                onClick={() => setSelectedMonth(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-lg transition"
-              >
-                ← กลับไปภาพรวมปี
-              </button>
-              <button
-                onClick={exportToExcel}
-                disabled={records.length === 0}
-                className={`px-4 py-2 font-bold rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition text-sm ${records.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
-              >
-                📊 Excel
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition text-sm"
-              >
-                <Printer className="w-4 h-4" /> พิมพ์
-              </button>
-            </div>
-          )}
+          <div className="md:col-span-3">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">เลือกเดือน</label>
+            <select
+              value={selectedMonth === null ? "" : selectedMonth.toString()}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedMonth(val === "" ? null : Number(val));
+              }}
+              className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium dark:text-slate-200"
+            >
+              <option value="">-- ภาพรวมทั้งปี --</option>
+              {THAI_MONTHS.map((m, i) => (
+                <option key={i} value={i}>{m}</option>
+              ))}
+            </select>
+          </div>
 
+          <div className="md:col-span-3 flex justify-end gap-2 mt-7">
+            {selectedMonth !== null && (
+              <>
+                <button
+                  onClick={exportToExcel}
+                  disabled={filteredRecords.length === 0}
+                  className={`px-4 py-2 font-bold rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition text-sm ${filteredRecords.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+                >
+                  Excel
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition text-sm"
+                >
+                  พิมพ์
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {selectedMonth !== null && (
           <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="mb-4">
+              <p className="text-sm text-slate-700 dark:text-slate-300 mb-4">
+                <strong><u>คำแนะนำ: หากต้องการส่งออกข้อมูล สามารถกดปุ่ม Excel เพื่อโหลดเป็นไฟล์ตาราง หรือกดปุ่ม พิมพ์ เพื่อปรินท์และบันทึกเป็น PDF ได้เลย</u></strong>
+              </p>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">ตัวกรองวันที่</label>
+              <div className="flex flex-wrap gap-2 items-center">
+                <button 
+                  onClick={() => {
+                    setDateRange('all');
+                    const m = String(selectedMonth + 1).padStart(2, '0');
+                    const lastDay = new Date(viewYear, selectedMonth + 1, 0).getDate();
+                    setCustomStartDate(`${viewYear}-${m}-01`);
+                    setCustomEndDate(`${viewYear}-${m}-${lastDay}`);
+                  }} 
+                  className={`px-3 py-1.5 text-sm rounded-lg border font-medium transition-colors ${dateRange === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                >ทั้งหมด</button>
+                <button 
+                  onClick={() => {
+                    setDateRange('1-15');
+                    const m = String(selectedMonth + 1).padStart(2, '0');
+                    setCustomStartDate(`${viewYear}-${m}-01`);
+                    setCustomEndDate(`${viewYear}-${m}-15`);
+                  }} 
+                  className={`px-3 py-1.5 text-sm rounded-lg border font-medium transition-colors ${dateRange === '1-15' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                >วันที่ 1-15</button>
+                <button 
+                  onClick={() => {
+                    setDateRange('16-31');
+                    const m = String(selectedMonth + 1).padStart(2, '0');
+                    const lastDay = new Date(viewYear, selectedMonth + 1, 0).getDate();
+                    setCustomStartDate(`${viewYear}-${m}-16`);
+                    setCustomEndDate(`${viewYear}-${m}-${lastDay}`);
+                  }} 
+                  className={`px-3 py-1.5 text-sm rounded-lg border font-medium transition-colors ${dateRange === '16-31' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                >วันที่ 16-31</button>
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">กำหนดเอง:</span>
+                  <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDateRange('custom'); }} className="px-2 py-1.5 text-sm border border-slate-300 rounded outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-900" />
+                  <span className="text-slate-500">-</span>
+                  <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDateRange('custom'); }} className="px-2 py-1.5 text-sm border border-slate-300 rounded outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-900" />
+                </div>
+              </div>
+            </div>
+
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">ตั้งค่าการแสดงผล (ตาราง & พิมพ์ & Excel)</label>
             <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
               {(Object.keys(colVisibility) as Array<keyof typeof colVisibility>).map(key => (
@@ -686,7 +765,7 @@ export default function AttendancePersonPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800 print:divide-slate-300">
-                    {records.map((rec) => {
+                    {filteredRecords.map((rec) => {
                       const isMissingPunch = (rec.time_in_1 && !rec.time_out_1) || (rec.time_in_2 && !rec.time_out_2);
                       const isAbsent = !rec.time_in_1 && !rec.time_out_1 && !rec.time_in_2 && !rec.time_out_2 && !rec.remark;
 
